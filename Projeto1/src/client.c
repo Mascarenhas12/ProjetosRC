@@ -59,13 +59,19 @@ int main(int argc, char const *argv[])
     return -1;
   }
 
-  /*if ((recv(fd_clientSock, &buffer, sizeof(buffer), 0)) == -1)
-  {
-    perror("Error receiving from server!");
-    return -1;
-  }
+  printf("%s\n");
 
-  printf("%s\n", buffer);*/
+  while(1){
+    
+    if ((recv(fd_clientSock, &buffer, sizeof(buffer), 0)) == -1)
+    {
+      perror("Error receiving from server!");
+      return -1;
+    }
+
+    printf("%s\n", buffer);
+
+  }
 
   close(fd_clientSock);
   return 0;

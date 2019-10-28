@@ -35,7 +35,8 @@ int main(int argc, char const *argv[])
   struct sockaddr_in clientSock_addr;
   socklen_t clientSock_addr_len;
 
-  char message[MAXCHAR] = "Connected to server!";
+  /*char message[MAXCHAR] = "Connected to server!";*/
+  char message[MAXCHAR];
 
   /*1 - 1023 so pode correr em root duvida*/
   if (argc < 2 || atoi(argv[1]) > 65535)
@@ -89,11 +90,18 @@ int main(int argc, char const *argv[])
     return -1;
   }
 
-  /* ssize_t send(int sockfd, const void *buf, size_t len, int flags); */
-  if ((send(fd_clientSock, message, sizeof(message), 0)) == -1)
-  {
-    perror("Error while sending message in server!");
-    return -1;
+  while(1){
+    /* ssize_t send(int sockfd, const void *buf, size_t len, int flags); */
+    
+    
+
+    scanf("%s",message);
+    
+    if ((send(fd_clientSock, message, sizeof(message), 0)) == -1)
+    {
+      perror("Error while sending message in server!");
+      return -1;
+    }
   }
 
   close(fd_serverSock);
