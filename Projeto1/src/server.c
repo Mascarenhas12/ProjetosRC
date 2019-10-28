@@ -93,9 +93,11 @@ int main(int argc, char const *argv[])
   while(1){
     /* ssize_t send(int sockfd, const void *buf, size_t len, int flags); */
     
-    
+    if(scanf("%s",message)==-1){
 
-    scanf("%s",message);
+    	printf("Scanf error");
+    	return -1;
+    }
     
     if ((send(fd_clientSock, message, sizeof(message), 0)) == -1)
     {
