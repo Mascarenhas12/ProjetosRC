@@ -24,6 +24,8 @@
 
  Link insertL(Link head, int id);
 
+ void removeL(Link head, int id);
+
  void freeL(Link head);
 
  #endif

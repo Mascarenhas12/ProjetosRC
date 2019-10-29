@@ -18,37 +18,50 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include "../hdr/server.h"
+#include "../hdr/list.h"
 
 #define MAXCHAR 4096
 
 int main(int argc, char const *argv[])
 {
-  int serverPort;
+  fd_set readFds;
+  fd_set writeFds;
 
-  /* fd_set readFds; */
-  /* fd_set writeFds; */
+  int recvStatus;
 
-  int fd_serverSock;
-  int fd_clientSock;
+  int numFD;
+  int serverSock;
+  int clientSock;
+  Link clientSockList;
+  Link t, u;
 
   struct sockaddr_in serverSock_addr;
   struct sockaddr_in clientSock_addr;
   socklen_t clientSock_addr_len;
 
-  /*char message[MAXCHAR] = "Connected to server!";*/
   char message[MAXCHAR];
+  char clientMsg;
+
+
+  /* ======================================================================================== */
+  /* Arguments verification and init                                                          */
+  /* ======================================================================================== */
+
 
   /*1 - 1023 so pode correr em root duvida*/
-  if (argc < 2 || atoi(argv[1]) > 65535)
+  if (argc < 2)
   {
-    perror("Wrong arguments! Expected a server port!");
+    perror("Wrong number of arguments! Expected <port_number>");
+    return -1;
+  }
+  if (atoi(argv[1]) > 65535)
+  {
+    perror("Invalid port number!");
     return -1;
   }
 
-  serverPort = atoi(argv[1]);
-
   /* int socket(int domain, int type, int protocol); */
-  if ((fd_serverSock = socket(AF_INET, SOCK_STREAM, 0)) == -1)
+  if ((serverSock = socket(AF_INET, SOCK_STREAM, 0)) == -1)
   {
     perror("Error while creating server socket!");
     return -1;
@@ -56,55 +69,117 @@ int main(int argc, char const *argv[])
 
   bzero((char *) &serverSock_addr, sizeof(serverSock_addr));
   serverSock_addr.sin_family = AF_INET;
-  serverSock_addr.sin_port = htons(serverPort);
+  serverSock_addr.sin_port = htons(atoi(argv[1]));
   serverSock_addr.sin_addr.s_addr = htonl(INADDR_ANY);
 
+
+  /* ======================================================================================== */
+  /* Bind and listen                                                                          */
+  /* ======================================================================================== */
+
+
   /* int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen); */
-  if ((bind(fd_serverSock, (struct sockaddr*) &serverSock_addr, sizeof(serverSock_addr))) == -1)
+  if ((bind(serverSock, (struct sockaddr*) &serverSock_addr, sizeof(serverSock_addr))) == -1)
   {
     perror("Error while doing bind!");
     return -1;
   }
 
   /* int listen(int sockfd, int backlog); */
-  if ((listen(fd_serverSock, 1)) == -1)
+  printf("Listening on port: %s\n",argv[1]);
+  if ((listen(serverSock, 1)) == -1)
   {
     perror("Error while doing listen!");
     return -1;
   }
-  /*
-  FD_ZERO(&readFds);
-  FD_ZERO(&writeFds);
 
-  FD_SET(fileDescriptor, &readFds);
-  FD_SET(fileDescriptor, &write);
-  */
-  /* select code */
+  /* ======================================================================================== */
+  /* Select and Accept                                                                        */
+  /* ======================================================================================== */
 
-  /*FD_ISSET()*/
+  numFD = 1;
+  clientSockList = NULL;
 
-  clientSock_addr_len = sizeof(clientSock_addr);
-  if ((fd_clientSock = accept(fd_serverSock, (struct sockaddr*) &clientSock_addr, &clientSock_addr_len)) == -1)
+  while (1)
   {
-    perror("Error while doing accept!");
-    return -1;
-  }
+    FD_ZERO(&readFds);
+    FD_ZERO(&writeFds);
 
-  while(1){
-    /* ssize_t send(int sockfd, const void *buf, size_t len, int flags); */
-    
-    
+    FD_SET(serverSock, &readFds);
+    FD_SET(serverSock, &writeFds);
 
-    scanf("%s",message);
-    
-    if ((send(fd_clientSock, message, sizeof(message), 0)) == -1)
+    for (u = clientSockList; u != NULL; u = u->next)
     {
-      perror("Error while sending message in server!");
+      FD_SET(u->id, &readFds);
+      FD_SET(u->id, &writeFds);
+    }
+    /* int select(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, struct timeval *timeout); */
+    if ((select(numFD + 1, &readFds, &writeFds, 0, 0)) == -1)
+    {
+      perror("Error while doing select!");
       return -1;
+    }
+
+    if (FD_ISSET(serverSock, &readFds))
+    {
+      clientSock_addr_len = sizeof(clientSock_addr);
+      if ((clientSock = accept(serverSock, (struct sockaddr*) &clientSock_addr, &clientSock_addr_len)) == -1)
+      {
+        perror("Error while doing accept!");
+        return -1;
+      }
+
+      numFD++;
+      clientSockList = insertL(clientSockList, clientSock);
+
+      for (u = clientSockList; u != NULL; u = u->next)
+      {
+        if (FD_ISSET(u->id, &writeFds))
+        {
+          if ((send(t->id, message, sizeof(message), 0)) == -1)
+          {
+            perror("Error while sending message in server! (line 151)");
+            return -1;
+          }
+        }
+      }
+      if ((send(1, message, sizeof(message), 0)) == -1)
+      {
+        perror("Error while sending message in server! (line 158)");
+        return -1;
+      }
+    }
+
+    for (u = clientSockList; u != NULL; u = u->next)
+    {
+      if (FD_ISSET(u->id, &readFds))
+      {
+        if ((recvStatus = recv(u->id, message, sizeof(message), 0)) == -1)
+        {
+          perror("Error while doing recv!");
+          return -1;
+        }
+        else if (recvStatus == 0)
+        {
+          message = "Client left";
+        }
+
+        for (t = clientSockList; t != NULL; t = t->next)
+        {
+          if (FD_ISSET(t->id, &writeFds) && t->id != u->id)
+          {
+            if ((send(t->id, message, sizeof(message), 0)) == -1)
+            {
+              perror("Error while sending message in server! (line 183)");
+              return -1;
+            }
+          }
+        }
+      }
     }
   }
 
-  close(fd_serverSock);
+  close(serverSock);
 
   return 0;
 }
