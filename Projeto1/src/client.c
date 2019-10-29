@@ -21,84 +21,58 @@
 #include "../hdr/server.h"
 
 #define MAXCHAR 4096
-#define LOCALHOST "127.0.0.1"
 
 int main(int argc, char const *argv[])
 {
-  int clientSock;
+  int fd_clientSock;
+
+  int clientPort;
+  char clientAddr[256] = "127.0.0.1";
+
   struct sockaddr_in clientSock_addr;
 
-  char message[MAXCHAR+50];
   char buffer[MAXCHAR];
 
-  if (argc < 3)
+  if (argc < 3 || strcmp(argv[1], "localhost") || atoi(argv[2]) > 65535)
   {
-    perror("Wrong number of arguments! Expected <server_host_name> <port_number>");
-    return -1;
-  }
-  if (atoi(argv[2]) > 65535)
-  {
-    perror("Invalid port number!");
+    perror("Wrong arguments! Expected a server port!");
     return -1;
   }
 
-  bzero((char *) &clientSock_addr, sizeof(clientSock_addr));
-  clientSock_addr.sin_family = AF_INET;
-  clientSock_addr.sin_port = htons(atoi(argv[2]));
+  /*clientAddr = "127.0.0.1";*/
+  clientPort = atoi(argv[2]);
 
-  if (strcmp(argv[1], "localhost") == 0)
-  {
-    clientSock_addr.sin_addr.s_addr = inet_addr(LOCALHOST);
-  }
-  else if ((clientSock_addr.sin_addr.s_addr = inet_addr(argv[1])) == -1)
-  {
-    perror("Inavlid server host name!");
-    return -1;
-  }
-
-  if ((clientSock = socket(AF_INET, SOCK_STREAM, 0)) == -1)
+  if ((fd_clientSock = socket(AF_INET, SOCK_STREAM, 0)) == -1)
   {
     perror("Error while creating client socket!");
     return -1;
   }
 
-  if ((connect(clientSock, (struct sockaddr*) &clientSock_addr, sizeof(clientSock_addr))) == -1)
+  bzero((char *) &clientSock_addr, sizeof(clientSock_addr));
+  clientSock_addr.sin_family = AF_INET;
+  clientSock_addr.sin_port = htons(clientPort);
+  clientSock_addr.sin_addr.s_addr = inet_addr(clientAddr);
+
+  if ((connect(fd_clientSock, (struct sockaddr*) &clientSock_addr, sizeof(clientSock_addr))) == -1)
   {
     perror("Error doing connect in client!");
     return -1;
   }
 
-  /*strcat(message, clientSock_addr.sin_addr.s_addr);
-  strcat(message, ":");
-  strcat(message, clientSock_addr.sin_port);
-  strcat(message, "\0");*/
+  printf("%s\n");
 
   while(1){
-
-    /*if(write(1, message, sizeof(message)) == -1){
-      perror("Error doing write");
-      return -1;
-    }*/
-
-    read(0, message, sizeof(message));
-
-    /*strcat(message,buffer);*/
-
-    if ((send(clientSock, &message, sizeof(message), 0)) == -1)
+    
+    if ((recv(fd_clientSock, &buffer, sizeof(buffer), 0)) == -1)
     {
       perror("Error receiving from server!");
       return -1;
     }
 
-    if ((recv(clientSock, &message, sizeof(message), 0)) == -1)
-    {
-      perror("Error receiving from server!");
-      return -1;
-    }
+    printf("%s\n", buffer);
 
-    write(1, message, sizeof(message));
   }
 
-  close(clientSock);
+  close(fd_clientSock);
   return 0;
 }
