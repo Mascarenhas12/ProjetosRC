@@ -59,8 +59,6 @@ int main(int argc, char const *argv[])
     return -1;
   }
 
-  printf("%s\n");
-
   while(1){
     
     if ((recv(fd_clientSock, &buffer, sizeof(buffer), 0)) == -1)
