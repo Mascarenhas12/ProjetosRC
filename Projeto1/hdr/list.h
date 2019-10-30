@@ -9,23 +9,28 @@
  * ================================================
  */
 
- #ifndef LIST_H
- #define LIST_H
+#ifndef LIST_H
+#define LIST_H
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <unistd.h>
+/* Abstraction of the node struct to a type Link */
+typedef struct node *Link;
+//typedef struct sockaddr_in *addr;
 
- /* Abstraction of the node struct to a type Link */
- typedef struct node *Link;
+/* Struct that represents a node of a list of items */
+struct node
+{
+	int fd;
+	char* address;
+	Link next;
+};
 
- /* Struct that represents a node of a list of items */
- struct node
- {
- 	int id;
- 	Link next;
- };
+Link insertL(Link head, int fd, struct sockaddr_in* address);
 
- Link insertL(Link head, int id);
+Link removeL(Link head, int fd);
 
- void removeL(Link head, int id);
+void freeL(Link head);
 
- void freeL(Link head);
-
- #endif
+#endif

@@ -20,7 +20,34 @@
 #include "../hdr/server.h"
 #include "../hdr/list.h"
 
-#define MAXCHAR 4096
+#define MSG_MAX_SIZE 4069
+#define MSG_HEADER_MAX_SIZE 22
+
+static int getMessage(int clientSock, char* clientSock_addr, char* buffer)
+{
+  int recvStatus;
+  char* recvMsg = (char*) malloc(sizeof(char) * (MSG_MAX_SIZE + 1));
+
+  if ((recvStatus = recv(clientSock, recvMsg, MSG_MAX_SIZE + 1, 0)) == -1)
+  {
+    perror("Server.getMessage: Error recieving message!");
+    return -1;
+  }
+  else if (recvStatus == 0)
+  {
+    recvStatus = clientSock;
+    sprintf(buffer, "%s left.\n", clientSock_addr);
+  }
+  else
+  {
+    recvStatus = 1;
+    recvMsg = strtok(recvMsg, "\n");
+    sprintf(buffer, "%s %s\n", clientSock_addr, recvMsg);
+  }
+
+  free(recvMsg);
+  return recvStatus;
+}
 
 int main(int argc, char const *argv[])
 {
@@ -39,8 +66,7 @@ int main(int argc, char const *argv[])
   struct sockaddr_in clientSock_addr;
   socklen_t clientSock_addr_len;
 
-  char message[MAXCHAR];
-  char clientMsg;
+  char* message;
 
 
   /* ======================================================================================== */
@@ -48,7 +74,6 @@ int main(int argc, char const *argv[])
   /* ======================================================================================== */
 
 
-  /*1 - 1023 so pode correr em root duvida*/
   if (argc < 2)
   {
     perror("Wrong number of arguments! Expected <port_number>");
@@ -70,7 +95,7 @@ int main(int argc, char const *argv[])
   bzero((char *) &serverSock_addr, sizeof(serverSock_addr));
   serverSock_addr.sin_family = AF_INET;
   serverSock_addr.sin_port = htons(atoi(argv[1]));
-  serverSock_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+  serverSock_addr.sin_addr.s_addr = INADDR_ANY;
 
 
   /* ======================================================================================== */
@@ -86,7 +111,7 @@ int main(int argc, char const *argv[])
   }
 
   /* int listen(int sockfd, int backlog); */
-  printf("Listening on port: %s\n",argv[1]);
+  printf("Listening on port: %s\n", argv[1]);
   if ((listen(serverSock, 1)) == -1)
   {
     perror("Error while doing listen!");
@@ -97,8 +122,10 @@ int main(int argc, char const *argv[])
   /* Select and Accept                                                                        */
   /* ======================================================================================== */
 
-  numFD = 1;
+
+  numFD = serverSock;
   clientSockList = NULL;
+  message = (char*) malloc(sizeof(char) * (MSG_HEADER_MAX_SIZE + MSG_MAX_SIZE + 1));
 
   while (1)
   {
@@ -110,8 +137,8 @@ int main(int argc, char const *argv[])
 
     for (u = clientSockList; u != NULL; u = u->next)
     {
-      FD_SET(u->id, &readFds);
-      FD_SET(u->id, &writeFds);
+      FD_SET(u->fd, &readFds);
+      FD_SET(u->fd, &writeFds);
     }
     /* int select(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, struct timeval *timeout); */
     if ((select(numFD + 1, &readFds, &writeFds, 0, 0)) == -1)
@@ -128,58 +155,68 @@ int main(int argc, char const *argv[])
         perror("Error while doing accept!");
         return -1;
       }
-
-      numFD++;
-      clientSockList = insertL(clientSockList, clientSock);
+      numFD = clientSock;
+      clientSockList = insertL(clientSockList, clientSock, &clientSock_addr);
 
       for (u = clientSockList; u != NULL; u = u->next)
       {
-        if (FD_ISSET(u->id, &writeFds))
+        //if (FD_ISSET(u->fd, &writeFds))
+        //{
+        sprintf(message, "%s joined.\n", u->address);
+
+        if ((send(u->fd, message, strlen(message), 0)) == -1)
         {
-          if ((send(t->id, message, sizeof(message), 0)) == -1)
-          {
-            perror("Error while sending message in server! (line 151)");
-            return -1;
-          }
+          perror("Error while sending message in server! (line 143)");
+          return -1;
         }
+        //}
       }
-      if ((send(1, message, sizeof(message), 0)) == -1)
+      if ((write(1, message, strlen(message))) == -1)
       {
-        perror("Error while sending message in server! (line 158)");
+        perror("Error while sending message in server! (line 151)");
         return -1;
       }
     }
 
+    recvStatus = 1;
+
     for (u = clientSockList; u != NULL; u = u->next)
     {
-      if (FD_ISSET(u->id, &readFds))
+      if (recvStatus > 1)
       {
-        if ((recvStatus = recv(u->id, message, sizeof(message), 0)) == -1)
-        {
-          perror("Error while doing recv!");
-          return -1;
-        }
-        else if (recvStatus == 0)
-        {
-          message = "Client left";
-        }
+        clientSockList = removeL(clientSockList, recvStatus);
+      }
+
+      if (FD_ISSET(u->fd, &readFds))
+      {
+        recvStatus = getMessage(u->fd, u->address, message);
 
         for (t = clientSockList; t != NULL; t = t->next)
         {
-          if (FD_ISSET(t->id, &writeFds) && t->id != u->id)
+
+          if (t->fd != u->fd && (send(t->fd, message, strlen(message), 0)) == -1)
           {
-            if ((send(t->id, message, sizeof(message), 0)) == -1)
-            {
-              perror("Error while sending message in server! (line 183)");
-              return -1;
-            }
+            perror("Error while sending message in server! (line 176)");
+            return -1;
           }
         }
+
+        if ((write(1, message, strlen(message))) == -1)
+        {
+          perror("Error while sending message in server! (line 184)");
+          return -1;
+        }
       }
+    }
+
+    if (recvStatus > 1)
+    {
+      clientSockList = removeL(clientSockList, recvStatus);
     }
   }
 
   close(serverSock);
+  freeL(clientSockList);
 
   return 0;
 }

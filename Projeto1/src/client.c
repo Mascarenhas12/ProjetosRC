@@ -10,6 +10,7 @@
  */
 
 #include <arpa/inet.h>
+#include <netdb.h>
 #include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -20,16 +21,23 @@
 #include <unistd.h>
 #include "../hdr/server.h"
 
-#define MAXCHAR 4096
+#define MSG_MAX_SIZE 4069
+#define MSG_HEADER_MAX_SIZE 22
+
 #define LOCALHOST "127.0.0.1"
 
 int main(int argc, char const *argv[])
 {
+  fd_set readFds;
+  fd_set writeFds;
+
   int clientSock;
   struct sockaddr_in clientSock_addr;
+  struct hostent *host;
 
-  char message[MAXCHAR+50];
-  char buffer[MAXCHAR];
+  char* message;
+
+  int recvStatus;
 
   if (argc < 3)
   {
@@ -45,16 +53,12 @@ int main(int argc, char const *argv[])
   bzero((char *) &clientSock_addr, sizeof(clientSock_addr));
   clientSock_addr.sin_family = AF_INET;
   clientSock_addr.sin_port = htons(atoi(argv[2]));
-
-  if (strcmp(argv[1], "localhost") == 0)
+  if ((host = gethostbyname(argv[1])) == NULL)
   {
-    clientSock_addr.sin_addr.s_addr = inet_addr(LOCALHOST);
-  }
-  else if ((clientSock_addr.sin_addr.s_addr = inet_addr(argv[1])) == -1)
-  {
-    perror("Inavlid server host name!");
+    perror("Invalid server host name!");
     return -1;
   }
+  clientSock_addr.sin_addr = *((struct in_addr *) host->h_addr);
 
   if ((clientSock = socket(AF_INET, SOCK_STREAM, 0)) == -1)
   {
@@ -68,37 +72,85 @@ int main(int argc, char const *argv[])
     return -1;
   }
 
-  /*strcat(message, clientSock_addr.sin_addr.s_addr);
-  strcat(message, ":");
-  strcat(message, clientSock_addr.sin_port);
-  strcat(message, "\0");*/
+  message = (char*) malloc(sizeof(char) * (MSG_HEADER_MAX_SIZE + MSG_MAX_SIZE + 1));
 
-  while(1){
+  while(1)
+  {
+    FD_ZERO(&readFds);
+    FD_ZERO(&writeFds);
 
-    /*if(write(1, message, sizeof(message)) == -1){
-      perror("Error doing write");
-      return -1;
-    }*/
+    FD_SET(0, &readFds);
+    FD_SET(clientSock, &readFds);
 
-    read(0, message, sizeof(message));
+    FD_SET(clientSock, &writeFds);
 
-    /*strcat(message,buffer);*/
-
-    if ((send(clientSock, &message, sizeof(message), 0)) == -1)
+    /* int select(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, struct timeval *timeout); */
+    if ((select(clientSock + 1, &readFds, &writeFds, 0, 0)) == -1)
     {
-      perror("Error receiving from server!");
+      perror("Client: Error while doing select!");
       return -1;
     }
 
-    if ((recv(clientSock, &message, sizeof(message), 0)) == -1)
+    if (FD_ISSET(0, &readFds))
     {
-      perror("Error receiving from server!");
-      return -1;
-    }
+      if ((fgets(message, MSG_MAX_SIZE + 1, stdin)) == NULL)
+      {
+        break;
+      }
 
-    write(1, message, sizeof(message));
+      if ((send(clientSock, message, MSG_MAX_SIZE + 1, 0)) == -1)
+      {
+        perror("Client: Error while doing send!");
+        return -1;
+      }
+    }
+    if (FD_ISSET(clientSock, &readFds))
+    {
+      if ((recvStatus = recv(clientSock, message, MSG_MAX_SIZE + 1, 0)) == -1)
+      {
+        perror("Client: Error while doing recv!");
+        return -1;
+      }
+      else if (recvStatus == 0)
+      {
+        break;
+      }
+      else
+      {
+        message = strtok(message, "\n");
+        strcat(message, "\n");
+      }
+
+      if ((write(1, message, strlen(message))) == -1)
+      {
+        perror("Client: Error writing recieved message!");
+        return -1;
+      }
+    }
   }
 
   close(clientSock);
   return 0;
 }
+
+/*int getshit(){
+
+char c;
+char message[MSG_MAX_SIZE];
+inc counter = 0;
+
+  while(1){
+
+    message[counter] = getchar();
+
+    if(message[counter] == "/n"){
+
+    message[counter] = "/0";
+    }
+
+    if (message[counter] =])
+
+
+}
+
+}*/
