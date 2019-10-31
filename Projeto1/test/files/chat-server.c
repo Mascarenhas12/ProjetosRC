@@ -17,8 +17,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include "../hdr/server.h"
-#include "../hdr/list.h"
+#include "list.h"
 
 #define MSG_MAX_SIZE 4069
 #define MSG_HEADER_MAX_SIZE 22
@@ -102,7 +101,7 @@ int main(int argc, char const *argv[])
   /* Bind and listen                                                                          */
   /* ======================================================================================== */
 
-
+  setsockopt(serverSock, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int));
   /* int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen); */
   if ((bind(serverSock, (struct sockaddr*) &serverSock_addr, sizeof(serverSock_addr))) == -1)
   {

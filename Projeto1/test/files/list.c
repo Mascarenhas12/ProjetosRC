@@ -16,7 +16,7 @@
 #include <string.h>
 #include <sys/socket.h>
 
-#include "../hdr/list.h"
+#include "list.h"
 
 /* Function that inserts an integer into a list, given its head.
  * Insertion is at the beginning of the list.

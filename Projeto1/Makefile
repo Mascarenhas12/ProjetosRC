@@ -8,24 +8,24 @@
 # Miguel Levezinho   - 90756
 # ================================================
 
-default: server client
+default: chat-server chat-client
 
-server: bin/server.o  bin/list.o
-	gcc -g -O3 -Werror -Wall -o server bin/server.o  bin/list.o
+chat-server: bin/chat-server.o  bin/list.o
+	gcc -g -O3 -Werror -Wall -o chat-server bin/chat-server.o  bin/list.o
 
-client: bin/client.o
-	gcc -g -O3 -Werror -Wall -o client bin/client.o
+chat-client: bin/chat-client.o
+	gcc -g -O3 -Werror -Wall -o chat-client bin/chat-client.o
 
-bin/server.o: src/server.c hdr/list.h
-	gcc -g -O3 -Werror -Wall -c src/server.c -o bin/server.o
+bin/chat-server.o: src/chat-server.c hdr/list.h
+	gcc -g -O3 -Werror -Wall -c src/chat-server.c -o bin/chat-server.o
 
-bin/client.o: src/client.c
-	gcc -g -O3 -Werror -Wall -c src/client.c -o bin/client.o
+bin/chat-client.o: src/chat-client.c
+	gcc -g -O3 -Werror -Wall -c src/chat-client.c -o bin/chat-client.o
 
 bin/list.o: src/list.c hdr/list.h
 	gcc -g -O3 -Werror -Wall -c src/list.c -o bin/list.o
 
 clean:
-	rm -f server bin/server.o
-	rm -f client bin/client.o
+	rm -f chat-server bin/chat-server.o
+	rm -f chat-client bin/chat-client.o
 	rm -f bin/list.o
