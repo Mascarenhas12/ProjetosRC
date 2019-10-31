@@ -160,16 +160,13 @@ int main(int argc, char const *argv[])
 
       for (u = clientSockList; u != NULL; u = u->next)
       {
-        //if (FD_ISSET(u->fd, &writeFds))
-        //{
-        sprintf(message, "%s joined.\n", u->address);
+        sprintf(message, "%s joined.\n", clientSockList->address);
 
         if ((send(u->fd, message, strlen(message), 0)) == -1)
         {
           perror("Error while sending message in server! (line 143)");
           return -1;
         }
-        //}
       }
       if ((write(1, message, strlen(message))) == -1)
       {

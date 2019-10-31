@@ -37,6 +37,10 @@ int main(int argc, char const *argv[])
 
   char* message;
 
+  char* inBuffer;
+  char readChar;
+  int inBuffer_size;
+
   int recvStatus;
 
   if (argc < 3)
@@ -53,6 +57,7 @@ int main(int argc, char const *argv[])
   bzero((char *) &clientSock_addr, sizeof(clientSock_addr));
   clientSock_addr.sin_family = AF_INET;
   clientSock_addr.sin_port = htons(atoi(argv[2]));
+
   if ((host = gethostbyname(argv[1])) == NULL)
   {
     perror("Invalid server host name!");
@@ -73,6 +78,8 @@ int main(int argc, char const *argv[])
   }
 
   message = (char*) malloc(sizeof(char) * (MSG_HEADER_MAX_SIZE + MSG_MAX_SIZE + 1));
+  inBuffer = (char*) malloc(sizeof(char) * (MSG_MAX_SIZE + 1));
+  inBuffer_size = 0;
 
   while(1)
   {
@@ -93,17 +100,32 @@ int main(int argc, char const *argv[])
 
     if (FD_ISSET(0, &readFds))
     {
-      if ((fgets(message, MSG_MAX_SIZE + 1, stdin)) == NULL)
+      if ((recvStatus = read(0, &readChar, 1)) == -1)
+      {
+        perror("Client: Error while doing read!");
+        return -1;
+      }
+      else if (recvStatus == 0)
       {
         break;
       }
-
-      if ((send(clientSock, message, MSG_MAX_SIZE + 1, 0)) == -1)
+      else if (readChar != '\n')
       {
-        perror("Client: Error while doing send!");
-        return -1;
+        inBuffer[inBuffer_size] = readChar;
+        inBuffer_size++;
+      }
+      else if (readChar == '\n')
+      {
+        if ((send(clientSock, inBuffer, MSG_MAX_SIZE + 1, 0)) == -1)
+        {
+          perror("Client: Error while doing send!");
+          return -1;
+        }
+        bzero(inBuffer, inBuffer_size + 1);
+        inBuffer_size = 0;
       }
     }
+
     if (FD_ISSET(clientSock, &readFds))
     {
       if ((recvStatus = recv(clientSock, message, MSG_MAX_SIZE + 1, 0)) == -1)
@@ -132,25 +154,3 @@ int main(int argc, char const *argv[])
   close(clientSock);
   return 0;
 }
-
-/*int getshit(){
-
-char c;
-char message[MSG_MAX_SIZE];
-inc counter = 0;
-
-  while(1){
-
-    message[counter] = getchar();
-
-    if(message[counter] == "/n"){
-
-    message[counter] = "/0";
-    }
-
-    if (message[counter] =])
-
-
-}
-
-}*/
