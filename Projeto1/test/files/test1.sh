@@ -78,12 +78,12 @@ declare -a IPPorts
 ./chat-server 4234 >/dev/null 2>/dev/null &
 SERVER_PID=$!
 
-(sleep 20) | ./chat-client localhost 4234 > chat-client.out &
+(sleep 2) | ./chat-client localhost 4234 > chat-client.out &
 RCLIENT_PID=$!
 sleep .1
 RCLIENT_IPPORT=$(netstat -np 2>/dev/null | awk "\$7 == \"$RCLIENT_PID/./chat-client\" {print \$4}")
 
-for i in {0..100}
+for i in {0..10}
 do
     (echo "Test $i"; sleep .3) | ./chat-client localhost 4234 >/dev/null 2>/dev/null &
     clientPids[${i}]=$!

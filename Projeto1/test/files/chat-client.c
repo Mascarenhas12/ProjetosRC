@@ -20,15 +20,12 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#define MSG_MAX_SIZE 4069
+#define MSG_MAX_SIZE 4096
 #define MSG_HEADER_MAX_SIZE 22
-
-#define LOCALHOST "127.0.0.1"
 
 int main(int argc, char const *argv[])
 {
   fd_set readFds;
-  fd_set writeFds;
 
   int clientSock;
   struct sockaddr_in clientSock_addr;
@@ -41,68 +38,84 @@ int main(int argc, char const *argv[])
   int inBuffer_size;
 
   int recvStatus;
+  int exitStatus;
+
+  /* ======================================================================================== */
+  /* Argument verification and init                                                           */
+  /* ======================================================================================== */
 
   if (argc < 3)
   {
     perror("Wrong number of arguments! Expected <server_host_name> <port_number>");
-    return -1;
+    exit(-1);
   }
   if (atoi(argv[2]) > 65535)
   {
     perror("Invalid port number!");
-    return -1;
+    exit(-1);
   }
 
-  bzero((char *) &clientSock_addr, sizeof(clientSock_addr));
+  memset((char *) &clientSock_addr, 0, sizeof(clientSock_addr));
   clientSock_addr.sin_family = AF_INET;
   clientSock_addr.sin_port = htons(atoi(argv[2]));
 
   if ((host = gethostbyname(argv[1])) == NULL)
   {
     perror("Invalid server host name!");
-    return -1;
+    exit(-1);
   }
   clientSock_addr.sin_addr = *((struct in_addr *) host->h_addr);
+
+  /* ======================================================================================== */
+  /* Create socket and connect to server                                                      */
+  /* ======================================================================================== */
 
   if ((clientSock = socket(AF_INET, SOCK_STREAM, 0)) == -1)
   {
     perror("Error while creating client socket!");
-    return -1;
+    exit(-1);
   }
 
   if ((connect(clientSock, (struct sockaddr*) &clientSock_addr, sizeof(clientSock_addr))) == -1)
   {
     perror("Error doing connect in client!");
-    return -1;
+    close(clientSock);
+    exit(-1);
   }
 
   message = (char*) malloc(sizeof(char) * (MSG_HEADER_MAX_SIZE + MSG_MAX_SIZE + 1));
-  inBuffer = (char*) malloc(sizeof(char) * (MSG_MAX_SIZE + 1));
+  inBuffer = (char*) malloc(sizeof(char) * (MSG_MAX_SIZE + 100));
   inBuffer_size = 0;
+  exitStatus = 0;
+
+  /* ======================================================================================== */
+  /* Select and read/send cicle                                                               */
+  /* ======================================================================================== */
 
   while(1)
   {
     FD_ZERO(&readFds);
-    FD_ZERO(&writeFds);
-
     FD_SET(0, &readFds);
     FD_SET(clientSock, &readFds);
 
-    FD_SET(clientSock, &writeFds);
-
-    /* int select(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, struct timeval *timeout); */
-    if ((select(clientSock + 1, &readFds, &writeFds, 0, 0)) == -1)
+    if ((select(clientSock + 1, &readFds, 0, 0, 0)) == -1)
     {
-      perror("Client: Error while doing select!");
-      return -1;
+      perror("chat-client:Error while doing select!");
+      exitStatus = -1;
+      break;
     }
+
+    /* ======================================================================================== */
+    /* Check for input from stdin                                                               */
+    /* ======================================================================================== */
 
     if (FD_ISSET(0, &readFds))
     {
       if ((recvStatus = read(0, &readChar, 1)) == -1)
       {
-        perror("Client: Error while doing read!");
-        return -1;
+        perror("chat-client:Error while doing read!");
+        exitStatus = -1;
+        break;
       }
       else if (recvStatus == 0)
       {
@@ -115,22 +128,31 @@ int main(int argc, char const *argv[])
       }
       else if (readChar == '\n')
       {
-        if ((send(clientSock, inBuffer, MSG_MAX_SIZE + 1, 0)) == -1)
+        inBuffer[inBuffer_size] = readChar;
+        inBuffer_size++;
+
+        if ((send(clientSock, inBuffer, inBuffer_size, 0)) == -1)
         {
-          perror("Client: Error while doing send!");
-          return -1;
+          perror("chat-client:Error while doing send!");
+          exitStatus = -1;
+          break;
         }
-        bzero(inBuffer, inBuffer_size + 1);
+        memset(inBuffer, 0, MSG_MAX_SIZE + 100);
         inBuffer_size = 0;
       }
     }
 
+    /* ======================================================================================== */
+    /* Check for sent messages from the server and write them on stdout                         */
+    /* ======================================================================================== */
+
     if (FD_ISSET(clientSock, &readFds))
     {
-      if ((recvStatus = recv(clientSock, message, MSG_MAX_SIZE + 1, 0)) == -1)
+      if ((recvStatus = read(clientSock, message, MSG_HEADER_MAX_SIZE + MSG_MAX_SIZE + 1)) == -1)
       {
-        perror("Client: Error while doing recv!");
-        return -1;
+        perror("chat-client:Error while doing recv!");
+        exitStatus = -1;
+        break;
       }
       else if (recvStatus == 0)
       {
@@ -144,12 +166,17 @@ int main(int argc, char const *argv[])
 
       if ((write(1, message, strlen(message))) == -1)
       {
-        perror("Client: Error writing recieved message!");
-        return -1;
+        perror("chat-client:Error writing recieved message!");
+        exitStatus = -1;
+        break;
       }
+      memset(message, 0, MSG_HEADER_MAX_SIZE + MSG_MAX_SIZE + 1);
     }
   }
 
+  free(message);
+  free(inBuffer);
   close(clientSock);
-  return 0;
+
+  exit(exitStatus);
 }

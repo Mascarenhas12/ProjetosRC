@@ -24,12 +24,9 @@
 #define MSG_MAX_SIZE 4069
 #define MSG_HEADER_MAX_SIZE 22
 
-#define LOCALHOST "127.0.0.1"
-
 int main(int argc, char const *argv[])
 {
   fd_set readFds;
-  fd_set writeFds;
 
   int clientSock;
   struct sockaddr_in clientSock_addr;
@@ -84,15 +81,11 @@ int main(int argc, char const *argv[])
   while(1)
   {
     FD_ZERO(&readFds);
-    FD_ZERO(&writeFds);
 
     FD_SET(0, &readFds);
     FD_SET(clientSock, &readFds);
 
-    FD_SET(clientSock, &writeFds);
-
-    /* int select(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, struct timeval *timeout); */
-    if ((select(clientSock + 1, &readFds, &writeFds, 0, 0)) == -1)
+    if ((select(clientSock + 1, &readFds, 0, 0, 0)) == -1)
     {
       perror("Client: Error while doing select!");
       return -1;

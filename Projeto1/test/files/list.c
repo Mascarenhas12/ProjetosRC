@@ -18,13 +18,13 @@
 
 #include "list.h"
 
-/* Function that inserts an integer into a list, given its head.
+/* Function that inserts client info into a list, given its head.
  * Insertion is at the beginning of the list.
- * Asymptotic complexity is O(1).
  * Returns a pointer to the inserted node so that the head can be updated.
  *
- * head - Pointer to the first element on the list
- * id   - Integer to be removed
+ * head    - Pointer to the first element on the list
+ * fd      - File discriptor for the inserted clients socket
+ * address - Address of the client, from which the port number and IP address are derived
  */
 Link insertL(Link head, int fd, struct sockaddr_in* address)
 {
@@ -32,25 +32,18 @@ Link insertL(Link head, int fd, struct sockaddr_in* address)
 
 	new->fd = fd;
 	new->address = (char*) malloc(sizeof(char) * 25);
-	char* tmp = (char*) malloc(sizeof(char)*6);
-
-	strcat(new->address, inet_ntoa((struct in_addr) address->sin_addr));
-	strcat(new->address, ":");
-	sprintf(tmp, "%d", htons(address->sin_port));
-	strcat(new->address, tmp);
-
-	free(tmp);
+	sprintf(new->address, "%s:%d", inet_ntoa((struct in_addr) address->sin_addr), htons(address->sin_port));
 
 	new->next = head;
 
 	return new;
 }
 
-/* Function responsible for removing an integer from a list, given its head.
- * The node of the list is also freed from memory.
+/* Function responsible for removing a client from the client socket list, given its head.
+ * The node of the list is freed from memory and the clients socket closed.
  *
  * head - Pointer to the first element on the list
- * id   - Integer to be removed
+ * fd   - File descriptor of the client that disconnected
  */
 Link removeL(Link head, int fd)
 {
@@ -68,6 +61,7 @@ Link removeL(Link head, int fd)
 				u->next = t->next;
 			}
 
+			close(fd);
 			free(t->address);
 			free(t);
 			break;
@@ -76,7 +70,7 @@ Link removeL(Link head, int fd)
 	return head;
 }
 
-/* Function that frees a list from memory, given its head.
+/* Function that frees the client socket list from memory, given its head.
  *
  * head - Pointer to the first element on the list
  */
@@ -89,6 +83,7 @@ void freeL(Link head)
 		t = head;
 		head = t->next;
 
+		close(t->fd);
 		free(t->address);
 		free(t);
 	}

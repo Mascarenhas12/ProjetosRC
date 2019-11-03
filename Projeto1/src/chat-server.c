@@ -52,7 +52,6 @@ static int getMessage(int clientSock, char* clientSock_addr, char* buffer)
 int main(int argc, char const *argv[])
 {
   fd_set readFds;
-  fd_set writeFds;
 
   int recvStatus;
 
@@ -130,18 +129,14 @@ int main(int argc, char const *argv[])
   while (1)
   {
     FD_ZERO(&readFds);
-    FD_ZERO(&writeFds);
-
     FD_SET(serverSock, &readFds);
-    FD_SET(serverSock, &writeFds);
 
     for (u = clientSockList; u != NULL; u = u->next)
     {
       FD_SET(u->fd, &readFds);
-      FD_SET(u->fd, &writeFds);
     }
-    /* int select(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, struct timeval *timeout); */
-    if ((select(numFD + 1, &readFds, &writeFds, 0, 0)) == -1)
+
+    if ((select(numFD + 1, &readFds, 0, 0, 0)) == -1)
     {
       perror("Error while doing select!");
       return -1;

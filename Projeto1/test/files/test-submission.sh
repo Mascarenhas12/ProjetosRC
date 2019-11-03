@@ -73,15 +73,15 @@ fi
 
 echo "Running project."
 
-./chat-server 1234 >/dev/null 2>/dev/null &
+./chat-server 1234 &
 SERVER_PID=$!
 
-(sleep .5) | ./chat-client localhost 1234 >chat-client.out 2>/dev/null &
+(sleep .5) | ./chat-client localhost 1234 >chat-client.out &
 RCLIENT_PID=$!
 sleep .1
 RCLIENT_IPPORT=$(netstat -np 2>/dev/null | awk "\$7 == \"$RCLIENT_PID/./chat-client\" {print \$4}")
 
-(echo Test; sleep .3) | ./chat-client localhost 1234 >/dev/null 2>/dev/null &
+(echo Test; sleep .3) | ./chat-client localhost 1234 >/dev/null &
 SCLIENT_PID=$!
 sleep .1
 SCLIENT_IPPORT=$(netstat -np 2>/dev/null | awk "\$7 == \"$SCLIENT_PID/./chat-client\" {print \$4}")
