@@ -18,6 +18,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <errno.h>
+#include "packet-format.h"
 
 long GetFileSize(const char* filename)
 {
@@ -41,18 +42,20 @@ int main(int argc, char const *argv[]){
     
     int port;
     int senderSock;
-    int receiverSock;
     struct sockaddr_in senderSock_addr;
     struct sockaddr_storage receiverSock_addr;
 	socklen_t receiverSock_addr_len;
     
+    FILE *f;
     int seq = 1;
     int index = 0;
+    int number_of_bytes = 0;
 
-    int window_size = argv[4];
+    //int window_size = atoi(argv[4]);
     long array_size = (GetFileSize(argv[1]) % 1000) + 1;// vamos ver o numero de chunks que vamos enviar
     unsigned char aux_buffer[1000];
     data_pkt_t file_to_send[array_size];
+    ack_pkt_t ack;
 
     if (argc < 4)
 	{
@@ -73,15 +76,17 @@ int main(int argc, char const *argv[]){
 		exit(-1);
 	}
     
-    f = fopen(filename, "rb");
+    f = fopen(argv[1], "rb");
     if (f == NULL) return -1;
 
     for(int i = 0; i < array_size; i++){//inicializar o vetor
-        data_pkt_t.seq_num = i+1;
-        fread(aux_buffer, 1000, 1, f);
-        data_pkt_t.data = aux_buffer;
-        bzero(aux_buffer, 1000);
+        file_to_send[i].seq_num = i+1;
+        number_of_bytes	= fread(aux_buffer, 1000, 1, f);
+        memcpy(file_to_send[i].data, aux_buffer, number_of_bytes);
+        bzero(aux_buffer, number_of_bytes);
     }
+
+    fclose(f);
 
     if ((senderSock = socket(AF_INET, SOCK_DGRAM, 0)) == -1)
 	{
@@ -89,8 +94,8 @@ int main(int argc, char const *argv[]){
 		exit(-1);
 	}
 
-    if (setsockopt (sockfd, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,sizeof(timeout)) < 0){
-        error("setsockopt failed\n");
+    if (setsockopt (senderSock, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,sizeof(timeout)) < 0){
+        perror("setsockopt failed\n");
     }
     memset(&receiverSock_addr, 0, sizeof(senderSock_addr));
 	receiverSock_addr_len = sizeof(struct sockaddr_storage);
@@ -100,22 +105,16 @@ int main(int argc, char const *argv[]){
 	senderSock_addr.sin_port = htons(port);
 	senderSock_addr.sin_addr.s_addr = INADDR_ANY;
 
-    if ((host = gethostbyname(argv[2])) == NULL)
-    {
-        perror("Invalid server host name!");
-        exit(-1);
-    }
-
     while(index < array_size ){
 
-        if (sendto(senderSock, (data_pkt_t*) file_to_send[index], sizeof(data_pkt_t), 0, (struct sockaddr*) &receiverSock_addr, &receiverSock_addr_len) == -1)
+        if (sendto(senderSock, (data_pkt_t*) &file_to_send[index], sizeof(data_pkt_t), 0, (struct sockaddr*) &receiverSock_addr, receiverSock_addr_len) == -1)
 	    {
 		    perror("file-receiver:Error while sending ACK!");
-		    close(receiverSock);
+		    close(senderSock);
 		    exit(-1);
 	    }
 
-        if ((recvfrom(senderSock, (ack_pkt_t*) ack , sizeof(ack_pkt_t), 0, (struct sockaddr*) &receiverSock_addr, &receiverSock_addr_len)) == -1)
+        if ((recvfrom(senderSock, &ack, sizeof(ack_pkt_t), 0, (struct sockaddr*) &receiverSock_addr, &receiverSock_addr_len)) == -1)
 	    {
 		    if(errno == (EAGAIN || EWOULDBLOCK)){
                 seq++;
@@ -123,7 +122,7 @@ int main(int argc, char const *argv[]){
             }
             
             perror("file-receiver:Error while receiving!");
-		    close(receiverSock);
+		    close(senderSock);
 		    exit(-1);
 	    }
 
