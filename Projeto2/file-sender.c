@@ -17,7 +17,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include "chuck_aux.h"
+#include <errno.h>
 
 long GetFileSize(const char* filename)
 {
@@ -46,6 +46,9 @@ int main(int argc, char const *argv[]){
     struct sockaddr_storage receiverSock_addr;
 	socklen_t receiverSock_addr_len;
     
+    int seq = 1;
+    int index = 0;
+
     int window_size = argv[4];
     long array_size = (GetFileSize(argv[1]) % 1000) + 1;// vamos ver o numero de chunks que vamos enviar
     unsigned char aux_buffer[1000];
@@ -103,22 +106,29 @@ int main(int argc, char const *argv[]){
         exit(-1);
     }
 
-    for( i = 0; i < array_size; i++){
+    while(index < array_size ){
 
-        if (sendto(senderSock,(data_pkt_t*) file_to_send[i]  , sizeof(data_pkt_t), 0, (struct sockaddr*) &receiverSock_addr, &receiverSock_addr_len) == -1)
+        if (sendto(senderSock, (data_pkt_t*) file_to_send[index], sizeof(data_pkt_t), 0, (struct sockaddr*) &receiverSock_addr, &receiverSock_addr_len) == -1)
 	    {
 		    perror("file-receiver:Error while sending ACK!");
 		    close(receiverSock);
 		    exit(-1);
 	    }
 
-        if ((n = recvfrom(senderSock, (ack_pkt_t*) ack , sizeof(ack_pkt_t), 0, (struct sockaddr*) &receiverSock_addr, &receiverSock_addr_len)) == -1)
+        if ((recvfrom(senderSock, (ack_pkt_t*) ack , sizeof(ack_pkt_t), 0, (struct sockaddr*) &receiverSock_addr, &receiverSock_addr_len)) == -1)
 	    {
-		perror("file-receiver:Error while receiving!");
-		close(receiverSock);
-		exit(-1);
+		    if(errno == (EAGAIN || EWOULDBLOCK)){
+                seq++;
+                continue;
+            }
+            
+            perror("file-receiver:Error while receiving!");
+		    close(receiverSock);
+		    exit(-1);
 	    }
 
+        index++;
+        seq++;
     }
 
     exit(0);
