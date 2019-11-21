@@ -19,13 +19,6 @@
 #include <unistd.h>
 #include "chuck_aux.h"
 
-typedef struct chunck_aux {
-    data_pkt_t chunck;
-    int ack;
-    int timeout;
-} chunck_aux
-
-
 long GetFileSize(const char* filename)
 {
     long size;
@@ -42,27 +35,91 @@ long GetFileSize(const char* filename)
 
 int main(int argc, char const *argv[]){
 
-    int window_size = 1;//por agora
-
+    struct timeval timeout;      
+    timeout.tv_sec = 1;
+    timeout.tv_usec = 0;
+    
+    int port;
+    int senderSock;
+    int receiverSock;
+    struct sockaddr_in senderSock_addr;
+    struct sockaddr_storage receiverSock_addr;
+	socklen_t receiverSock_addr_len;
+    
+    int window_size = argv[4];
     long array_size = (GetFileSize(argv[1]) % 1000) + 1;// vamos ver o numero de chunks que vamos enviar
-
     unsigned char aux_buffer[1000];
+    data_pkt_t file_to_send[array_size];
 
-    chunck_aux file_to_send[array_size];
+    if (argc < 4)
+	{
+		perror("file-receiver:Wrong number of arguments! <file> <port> <window_size>");
+		exit(-1);
+	}
 
+    
+	if ((port = atoi(argv[3])) > 65535)
+	{
+		perror("file-receiver:Invalid port number!");
+		exit(-1);
+	}
+
+    if (atoi(argv[4]) > MAX_WINDOW_SIZE)
+	{
+		perror("file-receiver:Invalid window size!");
+		exit(-1);
+	}
+    
     f = fopen(filename, "rb");
     if (f == NULL) return -1;
 
     for(int i = 0; i < array_size; i++){//inicializar o vetor
-        file_to_send[i].chunck.seq_num = 1;
-        file_to_send[i].ack = 0;
-        file_to_send[i].timeout = 0;
+        data_pkt_t.seq_num = i+1;
         fread(aux_buffer, 1000, 1, f);
-        file_to_send[i].chunck.data = aux_buffer;
+        data_pkt_t.data = aux_buffer;
         bzero(aux_buffer, 1000);
     }
 
-    
+    if ((senderSock = socket(AF_INET, SOCK_DGRAM, 0)) == -1)
+	{
+		perror("file-receiver:Error creating receiver socket!");
+		exit(-1);
+	}
 
+    if (setsockopt (sockfd, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,sizeof(timeout)) < 0){
+        error("setsockopt failed\n");
+    }
+    memset(&receiverSock_addr, 0, sizeof(senderSock_addr));
+	receiverSock_addr_len = sizeof(struct sockaddr_storage);
+
+	memset(&senderSock_addr, 0, sizeof(senderSock_addr));
+	senderSock_addr.sin_family = AF_INET;
+	senderSock_addr.sin_port = htons(port);
+	senderSock_addr.sin_addr.s_addr = INADDR_ANY;
+
+    if ((host = gethostbyname(argv[2])) == NULL)
+    {
+        perror("Invalid server host name!");
+        exit(-1);
+    }
+
+    for( i = 0; i < array_size; i++){
+
+        if (sendto(senderSock,(data_pkt_t*) file_to_send[i]  , sizeof(data_pkt_t), 0, (struct sockaddr*) &receiverSock_addr, &receiverSock_addr_len) == -1)
+	    {
+		    perror("file-receiver:Error while sending ACK!");
+		    close(receiverSock);
+		    exit(-1);
+	    }
+
+        if ((n = recvfrom(senderSock, (ack_pkt_t*) ack , sizeof(ack_pkt_t), 0, (struct sockaddr*) &receiverSock_addr, &receiverSock_addr_len)) == -1)
+	    {
+		perror("file-receiver:Error while receiving!");
+		close(receiverSock);
+		exit(-1);
+	    }
+
+    }
+
+    exit(0);
 }
-
