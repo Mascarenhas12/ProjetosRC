@@ -8,7 +8,7 @@
  * Miguel Levezinho   - 90756
  * ================================================
  */
-
+#include <arpa/inet.h>
 #include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -42,8 +42,7 @@ int main(int argc, char const *argv[]){
     
     int port;
     int senderSock;
-    struct sockaddr_in senderSock_addr;
-    struct sockaddr_storage receiverSock_addr;
+    struct sockaddr_in receiverSock_addr;
 	socklen_t receiverSock_addr_len;
     
     FILE *f;
@@ -57,7 +56,7 @@ int main(int argc, char const *argv[]){
     data_pkt_t file_to_send[array_size];
     ack_pkt_t ack;
 
-    if (argc < 4)
+    if (argc != 4) 
 	{
 		perror("file-receiver:Wrong number of arguments! <file> <port> <window_size>");
 		exit(-1);
@@ -97,17 +96,17 @@ int main(int argc, char const *argv[]){
     if (setsockopt (senderSock, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,sizeof(timeout)) < 0){
         perror("setsockopt failed\n");
     }
-    memset(&receiverSock_addr, 0, sizeof(senderSock_addr));
-	receiverSock_addr_len = sizeof(struct sockaddr_storage);
+    memset(&receiverSock_addr, 0, sizeof(receiverSock_addr));
+	receiverSock_addr_len = sizeof(struct sockaddr_in);
 
-	memset(&senderSock_addr, 0, sizeof(senderSock_addr));
-	senderSock_addr.sin_family = AF_INET;
-	senderSock_addr.sin_port = htons(port);
-	senderSock_addr.sin_addr.s_addr = INADDR_ANY;
+	memset(&receiverSock_addr, 0, sizeof(receiverSock_addr));
+	receiverSock_addr.sin_family = AF_INET;
+	receiverSock_addr.sin_port = htons(port);
+	receiverSock_addr.sin_addr.s_addr = inet_addr(argv[1]);
 
     while(index < array_size ){
 
-        if (sendto(senderSock, (data_pkt_t*) &file_to_send[index], sizeof(data_pkt_t), 0, (struct sockaddr*) &receiverSock_addr, receiverSock_addr_len) == -1)
+        if (sendto(senderSock, (data_pkt_t*) &file_to_send[index], sizeof(file_to_send[index]), 0, (struct sockaddr*) &receiverSock_addr, receiverSock_addr_len) == -1)
 	    {
 		    perror("file-receiver:Error while sending ACK!");
 		    close(senderSock);
