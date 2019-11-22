@@ -19,41 +19,17 @@
 #include "packet-format.h"
 
 #define MAX_CHUNK_SIZE 1000
-#define FILE_NAME "receiver.txt"
 
-void insertWrite(data_pkt_t* chunk, FILE* fp, int window_size){
-	char* buffer = (char*) malloc(sizeof(char)* MAX_CHUNK_SIZE * (window_size-chunk->seq_num));
-	char* buffer2 = (char*) malloc(sizeof(char)* MAX_CHUNK_SIZE * (window_size+1-chunk->seq_num));
-
-	memset(buffer,0,sizeof(buffer));
-	memset(buffer2,0,sizeof(buffer2));
-
+void insertWrite(data_pkt_t* chunk, FILE* fp){
 	if(fseek(fp,MAX_CHUNK_SIZE*(chunk->seq_num -1),SEEK_SET) ==-1){
 		perror("file-receiver:Error while seeking in file!");
 		exit(-1);
 	}
 
-	if(fread(buffer,MAX_CHUNK_SIZE * (limit-chunk->seq_num),1,fp) == -1){
-		perror("file-receiver:Error while reading file!");
-		exit(-1);
-	}
-
-	strcat(buffer2,chunk->data);
-	strcat(buffer2,buffer);
-
-
-	if(fseek(fp,MAX_CHUNK_SIZE*(chunk->seq_num -1),SEEK_SET) ==-1){
-		perror("file-receiver:Error while seeking in file!");
-		exit(-1);
-	}
-
-	if(fputs(buffer2,fp) == -1){
+	if(fputs(chunk->data,fp) == -1){
 		perror("file-receiver:Error while writing in file!");
 		exit(-1);
 	}
-
-	free(buffer);
-	free(buffer2);
 }
 
 int int main(int argc, char const *argv[])
@@ -122,8 +98,8 @@ int int main(int argc, char const *argv[])
 
 	seq_num = 0;
 	ack_mask = 0;
-	fp = fopen(FILE_NAME, "wr+");
-	if (fP == NULL) return -1;
+	fp = fopen(argv[1], "wrb+");
+	if (fp == NULL) return -1;
 
 	do
 	{
@@ -135,7 +111,7 @@ int int main(int argc, char const *argv[])
 			exit(-1);
 		}
 
-		//insertWrite(chunk,fp,window_size);
+		insertWrite(chunk,fp);
 
 		ack_pkt_t ack;
 		ack.seq_num = ++seq_num;
