@@ -58,10 +58,9 @@ int main(int argc, char const *argv[]){
 		int nub = 0;
 
     FILE *f;
-    //int seq = 1;
     int index = 0;
 
-    //int window_size = atoi(argv[4]);
+    int window_size = atoi(argv[4]);
     long array_size = (GetFileSize(argv[1]) / MAX_CHUNK_SIZE) + 1;// vamos ver o numero de chunks que vamos enviar
 		char aux_buffer[MAX_CHUNK_SIZE];
 		memset(aux_buffer,0,MAX_CHUNK_SIZE);
@@ -100,7 +99,7 @@ int main(int argc, char const *argv[]){
       perror("file-sender:Error reading from file!");
         exit(-1);
     }
-    file_to_send[i] = createDataPacket(aux_buffer,nub,i);
+    file_to_send[i] = createDataPacket(aux_buffer,nub,i+1);
     file_to_send[i].data[nub] = '\0';
     memset(aux_buffer,0,sizeof(aux_buffer));
 
@@ -137,7 +136,6 @@ int main(int argc, char const *argv[]){
     if (recvfrom(senderSock, &ack, sizeof(ack_pkt_t), 0, (struct sockaddr*) &receiverSock_addr, &receiverSock_addr_len) == -1)
 		{
     	if(errno == (EAGAIN || EWOULDBLOCK)){
-        //seq++;
         continue;
     	}
 
@@ -147,7 +145,6 @@ int main(int argc, char const *argv[]){
   	}
 
     index++;
-    //seq++;
   }
 	puts("terminated with sucess");
   exit(0);
