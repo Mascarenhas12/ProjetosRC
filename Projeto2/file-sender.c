@@ -89,7 +89,6 @@ int main(int argc, char const *argv[]){
     if (f == NULL) return -1;
 
     for(int i = 0; i < array_size; i++){//inicializar o vetor
-        file_to_send[i].seq_num = i+1;
         number_of_bytes	= fread(aux_buffer, 1000, 1, f);
         memcpy(file_to_send[i].data, aux_buffer, number_of_bytes);
         bzero(aux_buffer, number_of_bytes);
@@ -114,7 +113,9 @@ int main(int argc, char const *argv[]){
 	receiverSock_addr.sin_port = htons(port);
 	receiverSock_addr.sin_addr.s_addr = inet_addr(argv[1]);
 
-    while(index < array_size ){
+    while(index < array_size){
+
+    	file_to_send[i].seq_num = seq;
 
         if (sendto(senderSock, (data_pkt_t*) &file_to_send[index], sizeof(file_to_send[index]), 0, (struct sockaddr*) &receiverSock_addr, receiverSock_addr_len) == -1)
 	    {
