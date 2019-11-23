@@ -20,6 +20,24 @@
 
 #define MAX_CHUNK_SIZE 1000
 
+ack_pkt_t createAckPacket(uint32_t selective, uint32_t seq){
+	ack_pkt_t new;
+
+	new.seq_num = seq;
+	new.selective_acks = selective;
+
+	return new;
+}
+
+uint32_t advanceWindow(char* pipeline, uint32_t window_base, int window_size){
+	for(uint32_t i = window_base;i < window_base + window_size;i++){
+		if(!pipeline[i]){
+			return i;
+		}
+	}
+	return window_base+window_size;
+}
+
 void insertWrite(data_pkt_t* chunk, FILE* fp){
 	if(fseek(fp,MAX_CHUNK_SIZE*(chunk->seq_num -1),SEEK_SET) ==-1){
 		perror("file-receiver:Error while seeking in file!");
@@ -32,22 +50,22 @@ void insertWrite(data_pkt_t* chunk, FILE* fp){
 	}
 }
 
-int int main(int argc, char const *argv[])
+int main(int argc, char const *argv[])
 {
 	int port;
 	int receiverSock;
-	int senderSock;
 	struct sockaddr_in receiverSock_addr;
 	struct sockaddr_storage senderSock_addr;
 	socklen_t senderSock_addr_len;
 
 	int window_size;
+	uint32_t window_base;
 	char pipeline[MAX_WINDOW_SIZE];
-	data_pkt_t* chunk;
+	data_pkt_t* chunk = (data_pkt_t*)malloc(sizeof(data_pkt_t));
 	FILE* fp;
 
 	int seq_num;
-	int ack_mask;
+	//int ack_mask;
 
 	/* ======================================================================================== */
 	/* Argument verification                                                                    */
@@ -97,7 +115,8 @@ int int main(int argc, char const *argv[])
 	}
 
 	seq_num = 0;
-	ack_mask = 0;
+	//ack_mask = 0;
+	window_base = 0;
 	fp = fopen(argv[1], "wrb+");
 	if (fp == NULL) return -1;
 
@@ -111,14 +130,21 @@ int int main(int argc, char const *argv[])
 			exit(-1);
 		}
 
-		insertWrite(chunk,fp);
+		//Confirmar com o miguel que o pipeline diz se ja recebeu o pckt
+		if(!pipeline[chunk->seq_num-1] && chunk->seq_num >= window_base && chunk->seq_num <= window_base+window_size){
+			insertWrite(chunk,fp);
+			pipeline[chunk->seq_num-1] = 1;
+		}
 
-		ack_pkt_t ack;
-		ack.seq_num = ++seq_num;
-		ack.selective_acks = 0;
+		if(chunk->seq_num == window_base){
+			window_base = advanceWindow(pipeline,window_base,window_size);
+		}
+
+		//Confirmar com o miguel como selective a mandar
+		ack_pkt_t ack = createAckPacket(0,++seq_num);
 
 		// ssize_t sendto(int sockfd, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t addrlen);
-		if (sendto(receiverSock, &ack, sizeof(ack_pkt_t), 0, (struct sockaddr*) &senderSock_addr, &senderSock_addr_len) == -1)
+		if (sendto(receiverSock, &ack, sizeof(ack_pkt_t), 0, (struct sockaddr*) &senderSock_addr, senderSock_addr_len) == -1)
 		{
 			perror("file-receiver:Error while sending ACK!");
 			close(receiverSock);
@@ -126,5 +152,5 @@ int int main(int argc, char const *argv[])
 		}
 	} while (sizeof(chunk->data) == MAX_CHUNK_SIZE);
 	fclose(fp);
-	exit(0);
+	return 0;
 }

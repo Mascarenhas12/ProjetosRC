@@ -20,6 +20,16 @@
 #include <errno.h>
 #include "packet-format.h"
 
+
+data_pkt_t createDataPacket(char* data, uint32_t last_seq){
+	data_pkt_t new;
+
+	sprintf(new.data,"%s",data);
+	new.seq_num = ++last_seq;
+
+	return new;
+}
+
 long GetFileSize(const char* filename)
 {
     long size;
