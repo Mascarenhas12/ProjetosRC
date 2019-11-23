@@ -30,10 +30,11 @@ ack_pkt_t createAckPacket(uint32_t selective, uint32_t seq){
 }
 
 uint32_t advanceWindow(char* pipeline, uint32_t window_base, int window_size){
-	for(uint32_t i = window_base;i < window_base + window_size;i++){
+	for(uint32_t i = window_base % MAX_WINDOW_SIZE;i < window_base + window_size;i++){
 		if(!pipeline[i]){
 			return i;
 		}
+		pipeline[i] = 0;
 	}
 	return window_base+window_size;
 }
@@ -60,7 +61,7 @@ int main(int argc, char const *argv[])
 
 	int window_size;
 	uint32_t window_base;
-	char pipeline[MAX_WINDOW_SIZE];
+	char pipeline[2*MAX_WINDOW_SIZE];
 	data_pkt_t* chunk = (data_pkt_t*)malloc(sizeof(data_pkt_t));
 	FILE* fp;
 
@@ -119,6 +120,7 @@ int main(int argc, char const *argv[])
 	window_base = 0;
 	fp = fopen(argv[1], "wrb+");
 	if (fp == NULL) return -1;
+	memset(pipeline,0,sizeof(pipeline));
 
 	do
 	{

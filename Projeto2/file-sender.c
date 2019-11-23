@@ -58,11 +58,10 @@ int main(int argc, char const *argv[]){
     FILE *f;
     int seq = 1;
     int index = 0;
-    int number_of_bytes = 0;
 
     //int window_size = atoi(argv[4]);
     long array_size = (GetFileSize(argv[1]) % 1000) + 1;// vamos ver o numero de chunks que vamos enviar
-    unsigned char aux_buffer[1000];
+    char aux_buffer[1000];
     data_pkt_t file_to_send[array_size];
     ack_pkt_t ack;
 
@@ -89,9 +88,12 @@ int main(int argc, char const *argv[]){
     if (f == NULL) return -1;
 
     for(int i = 0; i < array_size; i++){//inicializar o vetor
-        number_of_bytes	= fread(aux_buffer, 1000, 1, f);
-        memcpy(file_to_send[i].data, aux_buffer, number_of_bytes);
-        bzero(aux_buffer, number_of_bytes);
+        if(fread(aux_buffer, 1000, 1, f) == 0){
+            perror("file-sender:Error reading from file!");
+            exit(-1);
+        }
+        file_to_send[i] = createDataPacket(aux_buffer,i);
+        memset(aux_buffer,0, sizeof(aux_buffer));
     }
 
     fclose(f);
@@ -105,7 +107,6 @@ int main(int argc, char const *argv[]){
     if (setsockopt (senderSock, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,sizeof(timeout)) < 0){
         perror("setsockopt failed\n");
     }
-    memset(&receiverSock_addr, 0, sizeof(receiverSock_addr));
 	receiverSock_addr_len = sizeof(struct sockaddr_in);
 
 	memset(&receiverSock_addr, 0, sizeof(receiverSock_addr));
@@ -114,8 +115,6 @@ int main(int argc, char const *argv[]){
 	receiverSock_addr.sin_addr.s_addr = inet_addr(argv[1]);
 
     while(index < array_size){
-
-    	file_to_send[index].seq_num = seq;
 
         if (sendto(senderSock, (data_pkt_t*) &file_to_send[index], sizeof(file_to_send[index]), 0, (struct sockaddr*) &receiverSock_addr, receiverSock_addr_len) == -1)
 	    {
