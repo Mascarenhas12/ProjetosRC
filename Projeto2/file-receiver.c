@@ -84,7 +84,7 @@ int main(int argc, char const *argv[])
 		exit(-1);
 	}
 
-	if ((window_size = atoi(argv[4])) > MAX_WINDOW_SIZE)
+	if ((window_size = atoi(argv[3])) > MAX_WINDOW_SIZE)
 	{
 		perror("file-receiver:Invalid window size!");
 		exit(-1);
@@ -117,10 +117,11 @@ int main(int argc, char const *argv[])
 
 	seq_num = 0;
 	//ack_mask = 0;
-	window_base = 0;
-	fp = fopen(argv[1], "wrb+");
+	window_base = 1;
+	fp = fopen(argv[1], "w+");
 	if (fp == NULL) return -1;
 	memset(pipeline,0,sizeof(pipeline));
+	puts("Server opened on port 1234!");
 
 	do
 	{
@@ -132,18 +133,23 @@ int main(int argc, char const *argv[])
 			exit(-1);
 		}
 
+		printf("%d\n", chunk->seq_num);
+		//printf("%d %d %d\n", !pipeline[chunk->seq_num-1],chunk->seq_num >= window_base,chunk->seq_num <= window_base+window_size);
 		//Confirmar com o miguel que o pipeline diz se ja recebeu o pckt
 		if(!pipeline[chunk->seq_num-1] && chunk->seq_num >= window_base && chunk->seq_num <= window_base+window_size){
 			insertWrite(chunk,fp);
 			pipeline[chunk->seq_num-1] = 1;
+			puts("wrote");
 		}
 
 		if(chunk->seq_num == window_base){
 			window_base = advanceWindow(pipeline,window_base,window_size);
+			puts("advanced");
 		}
 
 		//Confirmar com o miguel como selective a mandar
-		ack_pkt_t ack = createAckPacket(0,++seq_num);
+		ack_pkt_t ack = createAckPacket(0, window_base);
+		printf("%ld\n", strlen(chunk->data));
 
 		// ssize_t sendto(int sockfd, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t addrlen);
 		if (sendto(receiverSock, &ack, sizeof(ack_pkt_t), 0, (struct sockaddr*) &senderSock_addr, senderSock_addr_len) == -1)
@@ -152,7 +158,7 @@ int main(int argc, char const *argv[])
 			close(receiverSock);
 			exit(-1);
 		}
-	} while (sizeof(chunk->data) == MAX_CHUNK_SIZE);
+	} while (strlen(chunk->data) == MAX_CHUNK_SIZE);
 	fclose(fp);
 	return 0;
 }
