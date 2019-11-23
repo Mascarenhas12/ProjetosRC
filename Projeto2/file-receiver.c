@@ -65,7 +65,7 @@ int main(int argc, char const *argv[])
 	data_pkt_t* chunk = (data_pkt_t*)malloc(sizeof(data_pkt_t));
 	FILE* fp;
 
-	int seq_num;
+	//int seq_num;
 	//int ack_mask;
 
 	/* ======================================================================================== */
@@ -115,7 +115,7 @@ int main(int argc, char const *argv[])
 		exit(-1);
 	}
 
-	seq_num = 0;
+	//seq_num = 0;
 	//ack_mask = 0;
 	window_base = 1;
 	fp = fopen(argv[1], "w+");

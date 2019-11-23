@@ -24,12 +24,8 @@
 
 data_pkt_t createDataPacket(char* data, int nub, uint32_t last_seq){
 	data_pkt_t new;
-	int i = 0;
 
-	while(data[i] != '\0'){
-		strcat(new.data,data[i]);
-		i++;
-	}
+	memcpy(new.data, data, nub);
 	new.seq_num = ++last_seq;
 
 	return new;
@@ -62,7 +58,7 @@ int main(int argc, char const *argv[]){
 		int nub = 0;
 
     FILE *f;
-    int seq = 1;
+    //int seq = 1;
     int index = 0;
 
     //int window_size = atoi(argv[4]);
@@ -78,7 +74,6 @@ int main(int argc, char const *argv[]){
 		exit(-1);
 	}
 
-	printf("%ld\n",array_size);
 	if (array_size <= 0){
 		perror("file-sender:Erro a abrir o ficheiro");
 		exit(-1);
@@ -105,11 +100,8 @@ int main(int argc, char const *argv[]){
       perror("file-sender:Error reading from file!");
         exit(-1);
     }
-
-		aux_buffer[nub] = '\0';
-		printf("%d\n", nub);
-		printf("%ld\n", strlen(aux_buffer));
     file_to_send[i] = createDataPacket(aux_buffer,nub,i);
+    file_to_send[i].data[nub] = '\0';
     memset(aux_buffer,0,sizeof(aux_buffer));
 
     }
@@ -145,7 +137,7 @@ int main(int argc, char const *argv[]){
     if (recvfrom(senderSock, &ack, sizeof(ack_pkt_t), 0, (struct sockaddr*) &receiverSock_addr, &receiverSock_addr_len) == -1)
 		{
     	if(errno == (EAGAIN || EWOULDBLOCK)){
-        seq++;
+        //seq++;
         continue;
     	}
 
@@ -155,7 +147,7 @@ int main(int argc, char const *argv[]){
   	}
 
     index++;
-    seq++;
+    //seq++;
   }
 	puts("terminated with sucess");
   exit(0);
