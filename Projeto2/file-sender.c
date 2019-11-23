@@ -22,6 +22,13 @@
 
 #define MAX_CHUNK_SIZE 1000
 
+typedef struct  data_info
+{
+  int seq;
+  int ack;
+  
+}data_info;
+
 data_pkt_t createDataPacket(char* data, int nub, uint32_t last_seq){
 	data_pkt_t new;
 
@@ -29,6 +36,24 @@ data_pkt_t createDataPacket(char* data, int nub, uint32_t last_seq){
 	new.seq_num = ++last_seq;
 
 	return new;
+}
+
+void give_ack(ack_pkt_t ack, data_info* chunks_info, int index, int window_size){
+
+  for(int i = index; i < index + window_size; i++){
+
+    if(chunks_info[i].seq + 1 == ack.seq_num){
+      chunks_info[i].ack = 1;
+    }
+  }
+}
+
+void move_window(int* index, data_info* chunks_info, int* counter){
+
+  while(chunks_info[*index].ack == 1){
+    (*counter) = (*counter) - 1;
+    (*index) = (*index) + 1;
+  }
 }
 
 long GetFileSize(const char* filename)
@@ -60,11 +85,13 @@ int main(int argc, char const *argv[]){
     FILE *f;
     int index = 0;
 
-    //int window_size = atoi(argv[4]);
+    int counter = 0;
+    int window_size = atoi(argv[4]);
     long array_size = (GetFileSize(argv[1]) / MAX_CHUNK_SIZE) + 1;// vamos ver o numero de chunks que vamos enviar
 		char aux_buffer[MAX_CHUNK_SIZE];
 		memset(aux_buffer,0,MAX_CHUNK_SIZE);
     data_pkt_t file_to_send[array_size];
+    data_info chunks_info[array_size];
     ack_pkt_t ack;
 
     if (argc != 5)
@@ -102,6 +129,8 @@ int main(int argc, char const *argv[]){
     file_to_send[i] = createDataPacket(aux_buffer,nub,i);
     file_to_send[i].data[nub] = '\0';
     memset(aux_buffer,0,sizeof(aux_buffer));
+    chunks_info[i].ack = 0;
+    chunks_info[i].seq = file_to_send[i].seq_num;
 
     }
 
@@ -124,18 +153,21 @@ int main(int argc, char const *argv[]){
 	receiverSock_addr.sin_addr.s_addr = INADDR_ANY;
 
   while(index < array_size){
-
-
-    if (sendto(senderSock, (data_pkt_t*) &file_to_send[index], sizeof(file_to_send[index]), 0, (struct sockaddr*) &receiverSock_addr, receiverSock_addr_len) == -1)
-		{
-    	perror("file-sender:Error while sending file!");
-    	close(senderSock);
-    	exit(-1);
-		}
+    
+    while(counter < window_size){
+      if (sendto(senderSock, (data_pkt_t*) &file_to_send[index + counter], sizeof(file_to_send[index + counter]), 0, (struct sockaddr*) &receiverSock_addr, receiverSock_addr_len) == -1)
+		  {
+    	 perror("file-sender:Error while sending file!");
+    	 close(senderSock);
+    	 exit(-1);
+		  }
+      counter++;
+      puts("send");
+    }
 
     if (recvfrom(senderSock, &ack, sizeof(ack_pkt_t), 0, (struct sockaddr*) &receiverSock_addr, &receiverSock_addr_len) == -1)
 		{
-    	if(errno == (EAGAIN || EWOULDBLOCK)){
+    	if(errno == (EAGAIN | EWOULDBLOCK)){
         continue;
     	}
 
@@ -143,8 +175,10 @@ int main(int argc, char const *argv[]){
 	    close(senderSock);
 	    exit(-1);
   	}
+    puts("recv");
 
-    index++;
+    give_ack(ack, chunks_info, index, window_size);
+    move_window(&index, chunks_info, &counter);
   }
 	puts("terminated with sucess");
   exit(0);
