@@ -115,7 +115,7 @@ int main(int argc, char const *argv[]){
 
     while(index < array_size){
 
-    	file_to_send[i].seq_num = seq;
+    	file_to_send[index].seq_num = seq;
 
         if (sendto(senderSock, (data_pkt_t*) &file_to_send[index], sizeof(file_to_send[index]), 0, (struct sockaddr*) &receiverSock_addr, receiverSock_addr_len) == -1)
 	    {
