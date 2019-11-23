@@ -30,12 +30,13 @@ ack_pkt_t createAckPacket(uint32_t selective, uint32_t seq){
 }
 
 uint32_t advanceWindow(char* pipeline, uint32_t window_base, int window_size){
-	for(uint32_t i = window_base % MAX_WINDOW_SIZE;i < window_base + window_size;i++){
+	for(uint32_t i = window_base;i < window_base + window_size;i++){
 		if(!pipeline[i]){
 			return i;
 		}
 		pipeline[i] = 0;
 	}
+	printf("Advance:%d\n", window_base+window_size);
 	return window_base+window_size;
 }
 
@@ -61,7 +62,7 @@ int main(int argc, char const *argv[])
 
 	int window_size;
 	uint32_t window_base;
-	char pipeline[2*MAX_WINDOW_SIZE];
+	char pipeline[1000000];
 	data_pkt_t* chunk = (data_pkt_t*)malloc(sizeof(data_pkt_t));
 	FILE* fp;
 
@@ -134,11 +135,11 @@ int main(int argc, char const *argv[])
 		}
 
 		printf("%d\n", chunk->seq_num);
-		//printf("%d %d %d\n", !pipeline[chunk->seq_num-1],chunk->seq_num >= window_base,chunk->seq_num <= window_base+window_size);
+		printf("%d %d %d\n", !pipeline[chunk->seq_num],chunk->seq_num>= window_base,chunk->seq_num <= window_base+window_size);
 		//Confirmar com o miguel que o pipeline diz se ja recebeu o pckt
-		if(!pipeline[chunk->seq_num-1] && chunk->seq_num >= window_base && chunk->seq_num <= window_base+window_size){
+		if(!pipeline[chunk->seq_num] && chunk->seq_num >= window_base && chunk->seq_num <= window_base+window_size){
 			insertWrite(chunk,fp);
-			pipeline[chunk->seq_num-1] = 1;
+			pipeline[chunk->seq_num] = 1;
 			puts("wrote");
 		}
 
@@ -149,7 +150,6 @@ int main(int argc, char const *argv[])
 
 		//Confirmar com o miguel como selective a mandar
 		ack_pkt_t ack = createAckPacket(0, window_base);
-		printf("%ld\n", strlen(chunk->data));
 
 		// ssize_t sendto(int sockfd, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t addrlen);
 		if (sendto(receiverSock, &ack, sizeof(ack_pkt_t), 0, (struct sockaddr*) &senderSock_addr, senderSock_addr_len) == -1)
