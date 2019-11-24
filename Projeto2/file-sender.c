@@ -213,12 +213,12 @@ int main(int argc, char const *argv[]){
         }
         chunks_info[last_ack.seq_num].send += 1;
 
-        /*if(chunks_info[last_ack.seq_num].send == 3)
+        if(chunks_info[last_ack.seq_num].send == 3)
         {
           perror("Three timeout ocurred");
           close(senderSock);
           exit(-1);
-        }*/
+        }
       }
       else
       {
