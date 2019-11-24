@@ -93,7 +93,7 @@ int main(int argc, char const *argv[]){
 
     int index = 0;//Numero do chunck em que estamos
 
-    int counter = 0;//Numero de ficheiros que vamos enviar
+    int counter = 0;//Numero de chunks que vamos enviar
 
     int window_size = atoi(argv[4]);
 
@@ -173,6 +173,8 @@ int main(int argc, char const *argv[]){
   while(index < array_size){
     while(counter < window_size){
       //Enviamos menssagem enquanto tivermos espaco e se ja nao tiver sido enviada
+      if(index + counter == array_size) break;
+
       if(chunks_info[index + counter].send == 0){
         if (sendto(senderSock, (data_pkt_t*) &file_to_send[index + counter], sizeof(file_to_send[index + counter]), 0, (struct sockaddr*) &receiverSock_addr, receiverSock_addr_len) == -1)
 		    {
@@ -188,11 +190,11 @@ int main(int argc, char const *argv[]){
     if (recvfrom(senderSock, &ack, sizeof(ack_pkt_t), 0, (struct sockaddr*) &receiverSock_addr, &receiverSock_addr_len) == -1)
 		{
     	if(errno == (EAGAIN | EWOULDBLOCK)){
-        counter--;
         //Em caso de erro vamos ver as menssagens que ainda nao foram recebidas e vamos dizer q estas ainda nao foram enviadas
         int i = index;
         while(i < index +window_size){
           if(chunks_info[i].ack == 0){
+            counter--;
             chunks_info[i].send = 0;
 
           }

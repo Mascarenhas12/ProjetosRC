@@ -28,26 +28,24 @@ static ack_pkt_t build_ack_packet(int recv_seq, window_t* window, int* selective
 {
 	ack_pkt_t ack_packet;
 
-	int i;
+	int i = 1;
 	int w_base = get_base_w(window);
 
 	if (recv_seq == w_base)
 	{
-		i = 1;
 		while (*selective_acks % 2)
 		{
 			*selective_acks /= 2;
 			i++;
 		}
 		*selective_acks /= 2;
-		advance_w(window, i, 0);
 	}
 	else
 	{
 		*selective_acks ^= (1 << (recv_seq - (w_base + 1)));
 	}
 
-	ack_packet.seq_num = get_base_w(window);
+	ack_packet.seq_num = advance_w(window, i);
 	ack_packet.selective_acks = *selective_acks;
 
 	return ack_packet;
@@ -154,11 +152,17 @@ int main(int argc, char const *argv[])
 	}
 
 	chunk = (data_pkt_t*) malloc(sizeof(data_pkt_t));
-	window = create_w(atoi(argv[3]), MAX_SEQ_NUM);
+	window = create_w(atoi(argv[3]), MAX_SEQ_NUM, 0);
 	selective_acks = 0;
 	exit_status = 0;
-	print_w(window);
+
 	puts("Server opened on port 1234!");
+
+
+	/* ======================================================================================== */
+	/* Receive and send loop                                                                    */
+	/* ======================================================================================== */
+
 
 	do
 	{
@@ -170,7 +174,7 @@ int main(int argc, char const *argv[])
 		}
 		printf("RECV: %d SIZE: %lu\n", chunk->seq_num, sizeof(chunk->data));
 
-		if (!contains_w(window, chunk->seq_num, 0))
+		if (!contains_w(window, chunk->seq_num))
 		{
 			if (sendto(receiverSock, &ack_packet, sizeof(ack_pkt_t), 0, (struct sockaddr*) &senderSock_addr, senderSock_addr_len) == -1)
 			{

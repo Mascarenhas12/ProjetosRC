@@ -16,15 +16,16 @@ typedef struct window {
 	int* scope;
 	int size;
 	int max_seq_num;
+	int circular_logic;
 } window_t;
 
-window_t* create_w(int size, int max_seq_num);
+window_t* create_w(int size, int max_seq_num, int circular_logic);
 
 int get_base_w(window_t* W);
 
-int contains_w(window_t* W, int seq_num, int circularLogic);
+int contains_w(window_t* W, int seq_num);
 
-void advance_w(window_t* W, int amount, int circularLogic);
+int advance_w(window_t* W, int amount);
 
 void print_w(window_t* W);
 
