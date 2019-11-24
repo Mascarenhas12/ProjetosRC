@@ -165,7 +165,7 @@ int main(int argc, char const *argv[]){
 	}
 
   //Set up do timer no socket
-  if (setsockopt (senderSock, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,sizeof(timeout)) < 0){
+  if (setsockopt (senderSock, SOL_SOCKET, SO_RCVTIME, (char *)&timeout,sizeof(timeout)) < 0){
     perror("file-sender:setsockopt failed\n");
   }
 	receiverSock_addr_len = sizeof(struct sockaddr_in);
