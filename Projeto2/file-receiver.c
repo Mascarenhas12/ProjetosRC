@@ -95,7 +95,7 @@ int main(int argc, char const *argv[])
 	/* ======================================================================================== */
 
 
-	if (argc < 4)
+	if (argc != 4)
 	{
 		exit_failure(&exit_status, "file-receiver:Wrong number of arguments! <file> <port> <window_size>");
 		exit(exit_status);
@@ -120,7 +120,7 @@ int main(int argc, char const *argv[])
 
 	if ((receiverSock = socket(AF_INET, SOCK_DGRAM, 0)) == -1)
 	{
-		exit_failure(&exit_status, "file-receiver:Error creating receiver socket!");
+		exit_failure(&exit_status, "file-receiver:Error creating socket!");
 		exit(-1);
 	}
 

@@ -62,6 +62,11 @@ int contains_w(window_t* W, int seq_num)
 	return 0;
 }
 
+int can_advance(window_t* W, int seq_num)
+{
+	return W->scope[0] == (seq_num-1);
+}
+
 /* Function that advances the window.
  * Returns the new window base.
  * W      - Window to advance
@@ -71,10 +76,16 @@ int advance_w(window_t* W, int amount)
 {
 	for (int i = 0; i < W->size; i++)
 	{
+		W->scope[i] += amount;
+
 		if (W->circular_logic && W->scope[i] == W->max_seq_num)
-			W->scope[i] = 1;
-		else
-			W->scope[i] += 1;
+		{
+			W->scope[i] %= W->max_seq_num;
+			if (W->scope[i] == 0)
+			{
+				W->scope[i] = 1;
+			}
+		}
 	}
 	return W->scope[0];
 }
