@@ -23,6 +23,7 @@
 #define MAX_CHUNK_SIZE 1000
 #define MAX_SEQ_NUM 64
 
+
 static ack_pkt_t build_ack_packet(int recv_seq, window_t* window, int* selective_acks)
 {
 	ack_pkt_t ack_packet;
@@ -51,28 +52,23 @@ static ack_pkt_t build_ack_packet(int recv_seq, window_t* window, int* selective
 }
 
 
-static int insertWrite(data_pkt_t* chunk, FILE* fp, int read)
+static int write_file_chunk(char* buffer, int cursor, int data_size, FILE* fp)
 {
-	if (fseek(fp, MAX_CHUNK_SIZE * (chunk->seq_num - 1), SEEK_SET) == -1)
+	if (fseek(fp, cursor * MAX_CHUNK_SIZE, SEEK_SET) == -1)
 		return -1;
 
-	if (fwrite(chunk->data,1,read-sizeof(int), fp) == -1)
+	if (fwrite(buffer, 1, data_size, fp) < data_size && ferror(fp))
 		return -1;
 
 	return 0;
 }
 
 
-static void exit_failure(int* exit_status, char* error_msg)
-{
-	perror(error_msg);
-	*exit_status = -1;
-}
-
-
 int main(int argc, char const *argv[])
 {
 	int port;
+
+	FILE* fp;
 
 	int receiverSock;
 	struct sockaddr_in receiverSock_addr;
@@ -82,35 +78,33 @@ int main(int argc, char const *argv[])
 	window_t* window;
 	int selective_acks;
 
+	int bytes_recv;
 	data_pkt_t* chunk;
 	ack_pkt_t ack_packet;
 
-	FILE* fp;
-
 	int exit_status;
-	int read;
 
 	/* ======================================================================================== */
 	/* Argument verification                                                                    */
 	/* ======================================================================================== */
 
 
-	if (argc != 4)
+	if (argc < 4)
 	{
-		exit_failure(&exit_status, "file-receiver:Wrong number of arguments! <file> <port> <window_size>");
-		exit(exit_status);
+		perror("file-receiver:Wrong number of arguments! <file> <port> <window_size>");
+		exit(-1);
 	}
 
 	if ((port = atoi(argv[2])) > 65535)
 	{
-		exit_failure(&exit_status, "file-receiver:Invalid port number!");
-		exit(exit_status);
+		perror("file-receiver:Invalid port number!");
+		exit(-1);
 	}
 
 	if (atoi(argv[3]) > MAX_WINDOW_SIZE)
 	{
-		exit_failure(&exit_status, "file-receiver:Invalid window size!");
-		exit(exit_status);
+		perror("file-receiver:Invalid window size!");
+		exit(-1);
 	}
 
 	/* ======================================================================================== */
@@ -120,7 +114,7 @@ int main(int argc, char const *argv[])
 
 	if ((receiverSock = socket(AF_INET, SOCK_DGRAM, 0)) == -1)
 	{
-		exit_failure(&exit_status, "file-receiver:Error creating socket!");
+		perror("file-receiver:Error creating receiver socket!");
 		exit(-1);
 	}
 
@@ -132,13 +126,18 @@ int main(int argc, char const *argv[])
 	receiverSock_addr.sin_port = htons(port);
 	receiverSock_addr.sin_addr.s_addr = INADDR_ANY;
 
-  setsockopt(receiverSock, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int));
+	if (setsockopt(receiverSock, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) == -1)
+	{
+		perror("file-receiver:Error setting socket options!");
+		close(receiverSock);
+		exit(-1);
+	}
 
 	if ((bind(receiverSock, (struct sockaddr*) &receiverSock_addr, sizeof(receiverSock_addr))) == -1)
 	{
-		exit_failure(&exit_status, "file-receiver:Error while binding socket!");
+		perror("file-receiver:Error while binding socket!");
 		close(receiverSock);
-		exit(exit_status);
+		exit(-1);
 	}
 
 	/* ======================================================================================== */
@@ -148,19 +147,17 @@ int main(int argc, char const *argv[])
 
 	if ((fp = fopen(argv[1], "wb+")) == NULL)
 	{
-		exit_failure(&exit_status, "file-receiver:Error opening file!");
+		perror("file-receiver:Error opening file!");
 		close(receiverSock);
-		exit(exit_status);
+		exit(-1);
 	}
 
 	chunk = (data_pkt_t*) malloc(sizeof(data_pkt_t));
-	window = create_w(atoi(argv[3]), MAX_SEQ_NUM, 0);
+	window = create_w(atoi(argv[3]), -1, 0);
 	selective_acks = 0;
 	exit_status = 0;
 
-	puts("Server opened on port 1234!");
-	//printf("%ld\n", sizeof(data_pkt_t));
-	//printf("%ld\n",sizeof(int) );
+	puts("Server opened on port 1234.");
 
 
 	/* ======================================================================================== */
@@ -171,44 +168,44 @@ int main(int argc, char const *argv[])
 	do
 	{
 		printf("Waiting for data...\n");
-		if ((read = recvfrom(receiverSock, (data_pkt_t*) chunk, sizeof(data_pkt_t), 0, (struct sockaddr*) &senderSock_addr, &senderSock_addr_len)) == -1)
+		if ((bytes_recv = recvfrom(receiverSock, (data_pkt_t*) chunk, sizeof(data_pkt_t), 0, (struct sockaddr*) &senderSock_addr, &senderSock_addr_len)) == -1)
 		{
-			exit_failure(&exit_status, "file-receiver:Error while receiving!");
+			perror("file-receiver:Error while receiving!");
+			exit_status = -1;
 			break;
 		}
-		printf("RECV: %d SIZE: %d\n", chunk->seq_num, read);
+		printf("RECV: %d SIZE: %lu\n", chunk->seq_num, sizeof(chunk->data));
 
 		if (!contains_w(window, chunk->seq_num))
 		{
-			if (sendto(receiverSock, &ack_packet, sizeof(ack_pkt_t), 0, (struct sockaddr*) &senderSock_addr, senderSock_addr_len) == -1)
-			{
-				exit_failure(&exit_status, "file-receiver:Error while resending ACK!");
-				break;
-			}
+			/* ignore */
 		}
 		else
 		{
-			if (insertWrite(chunk, fp, read) == -1)
+			if (write_file_chunk(chunk->data, chunk->seq_num - 1, bytes_recv - sizeof(int), fp) == -1)
 			{
-				exit_failure(&exit_status, "file-receiver:Error while seeking or writing in file!");
+				perror("file-receiver:Error while seeking or writing in file!");
+				exit_status = -1;
 				break;
 			}
 			//printf("BEFORE:"); print_w(window);
 			ack_packet = build_ack_packet(chunk->seq_num, window, &selective_acks);
 			//printf("AFTER:"); print_w(window);
 
-			//printf("%d %d\n", ack_packet.seq_num, ack_packet.selective_acks);
+			printf("%d %d\n", ack_packet.seq_num, ack_packet.selective_acks);
 
 			if (sendto(receiverSock, &ack_packet, sizeof(ack_pkt_t), 0, (struct sockaddr*) &senderSock_addr, senderSock_addr_len) == -1)
 			{
-				exit_failure(&exit_status, "file-receiver:Error while sending ACK!");
+				perror("file-receiver:Error while sending ACK!");
+				exit_status = -1;
 				break;
 			}
 		}
 	}
-	while (read == MAX_CHUNK_SIZE + sizeof(int));
+	while (bytes_recv == sizeof(data_pkt_t));
 
-	puts("Server received everything!");
+	if (exit_status != -1)
+		puts("Finished receiving data.");
 
 	free_w(window);
 	free(chunk);

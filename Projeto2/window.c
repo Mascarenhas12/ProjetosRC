@@ -14,11 +14,13 @@
 
 #include "window.h"
 
+#define MIN(a, b) (a < b ? a : b)
+
 /* Function that creates a new window type.
  * The window scope is initialized with crescent sequence numbers starting at 1.
  * Returns a pointer to the struct representing the window.
  * size           - Size of the scope of the window
- * max_seq_num    - The largest sequence number that can appear in the window
+ * max_seq_num    - The largest sequence number that can appear in the window. If set to -1 window is infinite
  * circular_logic - Flag set if the sequence numbers repeat after max_seq_num is reached
  */
 window_t* create_w(int size, int max_seq_num, int circular_logic)
@@ -62,13 +64,13 @@ int contains_w(window_t* W, int seq_num)
 	return 0;
 }
 
-int can_advance(window_t* W, int seq_num)
+static int can_reduce_w(window_t* W, int seq_num)
 {
-	return W->scope[0] == (seq_num-1);
+	return W->max_seq_num != -1 && seq_num > W->max_seq_num;
 }
 
 /* Function that advances the window.
- * Returns the new window base.
+ * Returns the new window base or -1 if window reached its set end.
  * W      - Window to advance
  * amount - Amount to advance the window
  */
@@ -77,6 +79,12 @@ int advance_w(window_t* W, int amount)
 	for (int i = 0; i < W->size; i++)
 	{
 		W->scope[i] += amount;
+
+		if (can_reduce_w(W, W->scope[i])) // Does not account circular logic
+		{
+			W->size -= (W->size - i);
+			return W->size == 0 ? (W->scope[0] = -1) : W->scope[0];
+		}
 
 		if (W->circular_logic && W->scope[i] == W->max_seq_num)
 		{
@@ -90,6 +98,15 @@ int advance_w(window_t* W, int amount)
 	return W->scope[0];
 }
 
+/* Function that checks if a window is empty.
+ * Returns true if empty and false otherwise.
+ * W - Window to check
+ */
+int empty_w(window_t* W)
+{
+	return W->size == 0;
+}
+
 /* Function that prints a formated form of the scope of the window.
  * W - Window to print
  */
@@ -100,7 +117,10 @@ void print_w(window_t* W)
 	{
 		printf("%d, ", W->scope[i]);
 	}
-	printf("%d]\n", W->scope[W->size - 1]);
+	if (!empty_w(W))
+		printf("%d]\n", W->scope[W->size - 1]);
+	else
+		printf("]\n");
 }
 
 /* Function that frees all resources associated with a window.
