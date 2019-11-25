@@ -247,6 +247,12 @@ int main(int argc, char const *argv[])
 			{
 				w_advance = ack_pkt->seq_num - w_base;
 				w_base = advance_w(window, w_advance);
+
+				if (get_size_w(window) < w_size)
+				{
+					w_advance = 0;
+				}
+				
 				w_size = get_size_w(window);
 			}
 		}
