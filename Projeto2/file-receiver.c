@@ -23,7 +23,6 @@
 #define MAX_CHUNK_SIZE 1000
 #define MAX_SEQ_NUM 64
 
-
 static ack_pkt_t build_ack_packet(int recv_seq, window_t* window, int* selective_acks)
 {
 	ack_pkt_t ack_packet;
@@ -52,12 +51,12 @@ static ack_pkt_t build_ack_packet(int recv_seq, window_t* window, int* selective
 }
 
 
-static int insertWrite(data_pkt_t* chunk, FILE* fp)
+static int insertWrite(data_pkt_t* chunk, FILE* fp, int read)
 {
 	if (fseek(fp, MAX_CHUNK_SIZE * (chunk->seq_num - 1), SEEK_SET) == -1)
 		return -1;
 
-	if (fputs(chunk->data, fp) == -1)
+	if (fwrite(chunk->data,1,read-sizeof(int), fp) == -1)
 		return -1;
 
 	return 0;
@@ -89,6 +88,7 @@ int main(int argc, char const *argv[])
 	FILE* fp;
 
 	int exit_status;
+	int read;
 
 	/* ======================================================================================== */
 	/* Argument verification                                                                    */
@@ -132,6 +132,8 @@ int main(int argc, char const *argv[])
 	receiverSock_addr.sin_port = htons(port);
 	receiverSock_addr.sin_addr.s_addr = INADDR_ANY;
 
+  setsockopt(receiverSock, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int));
+
 	if ((bind(receiverSock, (struct sockaddr*) &receiverSock_addr, sizeof(receiverSock_addr))) == -1)
 	{
 		exit_failure(&exit_status, "file-receiver:Error while binding socket!");
@@ -157,6 +159,8 @@ int main(int argc, char const *argv[])
 	exit_status = 0;
 
 	puts("Server opened on port 1234!");
+	//printf("%ld\n", sizeof(data_pkt_t));
+	//printf("%ld\n",sizeof(int) );
 
 
 	/* ======================================================================================== */
@@ -167,12 +171,12 @@ int main(int argc, char const *argv[])
 	do
 	{
 		printf("Waiting for data...\n");
-		if (recvfrom(receiverSock, (data_pkt_t*) chunk, sizeof(data_pkt_t), 0, (struct sockaddr*) &senderSock_addr, &senderSock_addr_len) == -1)
+		if ((read = recvfrom(receiverSock, (data_pkt_t*) chunk, sizeof(data_pkt_t), 0, (struct sockaddr*) &senderSock_addr, &senderSock_addr_len)) == -1)
 		{
 			exit_failure(&exit_status, "file-receiver:Error while receiving!");
 			break;
 		}
-		printf("RECV: %d SIZE: %lu\n", chunk->seq_num, sizeof(chunk->data));
+		printf("RECV: %d SIZE: %d\n", chunk->seq_num, read);
 
 		if (!contains_w(window, chunk->seq_num))
 		{
@@ -184,7 +188,7 @@ int main(int argc, char const *argv[])
 		}
 		else
 		{
-			if (insertWrite(chunk, fp) == -1)
+			if (insertWrite(chunk, fp, read) == -1)
 			{
 				exit_failure(&exit_status, "file-receiver:Error while seeking or writing in file!");
 				break;
@@ -193,7 +197,7 @@ int main(int argc, char const *argv[])
 			ack_packet = build_ack_packet(chunk->seq_num, window, &selective_acks);
 			//printf("AFTER:"); print_w(window);
 
-			printf("%d %d\n", ack_packet.seq_num, ack_packet.selective_acks);
+			//printf("%d %d\n", ack_packet.seq_num, ack_packet.selective_acks);
 
 			if (sendto(receiverSock, &ack_packet, sizeof(ack_pkt_t), 0, (struct sockaddr*) &senderSock_addr, senderSock_addr_len) == -1)
 			{
@@ -202,7 +206,9 @@ int main(int argc, char const *argv[])
 			}
 		}
 	}
-	while (strlen(chunk->data) == MAX_CHUNK_SIZE);
+	while (read == MAX_CHUNK_SIZE + sizeof(int));
+
+	puts("Server received everything!");
 
 	free_w(window);
 	free(chunk);

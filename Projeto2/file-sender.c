@@ -17,6 +17,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <netdb.h>
 #include <errno.h>
 #include "packet-format.h"
 #include "window.h"
@@ -29,6 +30,7 @@ typedef struct  data_info
   int seq;
   int ack;
   int send;
+  int bytes;
 
 }data_info;
 
@@ -90,6 +92,8 @@ int main(int argc, char const *argv[]){
 
     socklen_t receiverSock_addr_len;
 
+    struct hostent* host;
+
     int number_of_bytes = 0;
 
 
@@ -111,7 +115,6 @@ int main(int argc, char const *argv[]){
     data_info chunks_info[total_packets + 1];//Vetor com informacoes uteis sobre os chuncks co
 
     ack_pkt_t last_ack;//Oque que vamos receber
-    ack_pkt_t ack;
 
     if (argc != 5)
 	{
@@ -146,13 +149,13 @@ int main(int argc, char const *argv[]){
       perror("file-sender:Error reading from file!");
       exit(-1);
     }
-
     file_to_send[i] = createDataPacket(aux_buffer,number_of_bytes,i);
-    file_to_send[i].data[number_of_bytes] = '\0';
+
     memset(aux_buffer, 0, sizeof(aux_buffer));
     chunks_info[i].ack = 0;
     chunks_info[i].send = 0;
     chunks_info[i].seq = file_to_send[i].seq_num;
+    chunks_info[i].bytes = number_of_bytes;
 
   }
 
@@ -165,15 +168,22 @@ int main(int argc, char const *argv[]){
 	}
 
   //Set up do timer no socket
-  if (setsockopt (senderSock, SOL_SOCKET, SO_RCVTIME, (char *)&timeout,sizeof(timeout)) < 0){
+  if (setsockopt (senderSock, SOL_SOCKET, (SO_RCVTIMEO), (char *)&timeout,sizeof(timeout)) < 0){
     perror("file-sender:setsockopt failed\n");
   }
+  //Set up do timer no socket
+  if (setsockopt(senderSock, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0){
+    perror("file-sender:setsockopt failed\n");
+  }
+
+  host = gethostbyname(argv[2]);
+
 	receiverSock_addr_len = sizeof(struct sockaddr_in);
 
 	memset(&receiverSock_addr, 0, sizeof(receiverSock_addr));
 	receiverSock_addr.sin_family = AF_INET;
 	receiverSock_addr.sin_port = htons(port);
-	receiverSock_addr.sin_addr.s_addr = INADDR_ANY;
+  receiverSock_addr.sin_addr = *((struct in_addr *) host->h_addr);
 
   window = create_w(window_size,MAX_SEQ_NUM,0);
 
@@ -189,7 +199,9 @@ int main(int argc, char const *argv[]){
       }
 
   		if(chunks_info[i].send == 0){
-  			if(sendto(senderSock, (data_pkt_t*) &file_to_send[i], sizeof(file_to_send[i]), 0, (struct sockaddr*) &receiverSock_addr, receiverSock_addr_len) == -1)
+        printf("%d\n",file_to_send[i].seq_num);
+        //printf("%s\n", file_to_send[i].data);
+  			if(sendto(senderSock, (data_pkt_t*) &file_to_send[i], chunks_info[i].bytes + sizeof(int), 0, (struct sockaddr*) &receiverSock_addr, receiverSock_addr_len) == -1)
         {
           perror("file-sender:Error while sending file!");
           close(senderSock);
@@ -199,13 +211,12 @@ int main(int argc, char const *argv[]){
       }
     }
 
-    if(recvfrom(senderSock, &ack, sizeof(ack_pkt_t), 0, (struct sockaddr*) &receiverSock_addr, &receiverSock_addr_len) == -1)
+    if(recvfrom(senderSock, &last_ack, sizeof(ack_pkt_t), 0, (struct sockaddr*) &receiverSock_addr, &receiverSock_addr_len) == -1)
     {
       if(errno == (EAGAIN | EWOULDBLOCK))
       {
         puts("TIMEOUT");
-        //printf("%d\n",file_to_send[last_ack.seq_num]);
-        if(sendto(senderSock, (data_pkt_t*) &file_to_send[last_ack.seq_num], sizeof(file_to_send[last_ack.seq_num]), 0, (struct sockaddr*) &receiverSock_addr, receiverSock_addr_len) == -1)
+        if(sendto(senderSock, (data_pkt_t*) &file_to_send[last_ack.seq_num], chunks_info[last_ack.seq_num].bytes + sizeof(int), 0, (struct sockaddr*) &receiverSock_addr, receiverSock_addr_len) == -1)
         {
           perror("file-sender:Error while sending file!");
           close(senderSock);
@@ -227,12 +238,9 @@ int main(int argc, char const *argv[]){
         exit(-1);
       }
     }
-
-    last_ack = ack;
-
     // Ver se ack_packet recebido esta contido na janela e se sim marcar-lo como enviado com sucesso
     // Usar selective_acks
-    if(contains_w(window, ack.seq_num - 1)){
+    if(contains_w(window, last_ack.seq_num - 1)){
       mark_acked(last_ack, chunks_info , get_base_w(window), window->size);
     }
 
