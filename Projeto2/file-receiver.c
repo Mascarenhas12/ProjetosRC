@@ -89,19 +89,19 @@ int main(int argc, char const *argv[])
 	/* ======================================================================================== */
 
 
-	if (argc < 4)
+	if (argc != 4)
 	{
 		perror("file-receiver:Wrong number of arguments! <file> <port> <window_size>");
 		exit(-1);
 	}
 
-	if ((port = atoi(argv[2])) > 65535)
+	if ((port = atoi(argv[2])) > 65535 || port < 0)
 	{
 		perror("file-receiver:Invalid port number!");
 		exit(-1);
 	}
 
-	if (atoi(argv[3]) > MAX_WINDOW_SIZE)
+	if (atoi(argv[3]) > MAX_WINDOW_SIZE || atoi(argv[3]) < 0)
 	{
 		perror("file-receiver:Invalid window size!");
 		exit(-1);

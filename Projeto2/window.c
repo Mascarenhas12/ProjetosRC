@@ -27,7 +27,11 @@ window_t* create_w(int size, int max_seq_num, int circular_logic)
 {
 	window_t* new = (window_t*) malloc(sizeof(window_t));
 
-	new->size = size;
+	if (max_seq_num != -1 && size > max_seq_num)
+		new->size = max_seq_num;
+	else
+		new->size = size;
+
 	new->max_seq_num = max_seq_num;
 	new->scope = (int*) malloc(sizeof(int) * size);
 	new->circular_logic = circular_logic;

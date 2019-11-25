@@ -80,6 +80,7 @@ int main(int argc, char const *argv[])
 	data_pkt_t* data_pkt;
 	ack_pkt_t* ack_pkt;
 	int selective_acks;
+	int last_ack_seq;
 
 	window_t* window;
 	int w_size;
@@ -104,13 +105,13 @@ int main(int argc, char const *argv[])
 		exit(-1);
 	}
 
-	if ((port = atoi(argv[3])) > 65535)
+	if ((port = atoi(argv[3])) > 65535 || port < 0)
 	{
 		perror("file-sender:Invalid port number!");
 		exit(-1);
 	}
 
-	if ((w_size = atoi(argv[4])) > MAX_WINDOW_SIZE)
+	if ((w_size = atoi(argv[4])) > MAX_WINDOW_SIZE || w_size < 0)
 	{
 		perror("file-sender:Invalid window size!");
 		exit(-1);
@@ -171,6 +172,7 @@ int main(int argc, char const *argv[])
 	data_pkt = (data_pkt_t*) malloc(sizeof(data_pkt_t));
 	ack_pkt = (ack_pkt_t*) malloc(sizeof(ack_pkt_t));
 	selective_acks = 0;
+	last_ack_seq = 0;
 
 	timeout_counter = 0;
 
@@ -227,13 +229,22 @@ int main(int argc, char const *argv[])
 			else
 				exit_failure("file-sender:Error while receiving ACK!", senderSock, data_pkt, ack_pkt, window);
 		}
-		selective_acks = ack_pkt->selective_acks; // Atualizar sel_acks
 		timeout_counter = 0; // Se chegou aqui recebeu um packet, logo faz-se reset ao counter 
 
-		if (contains_w(window, ack_pkt->seq_num - 1))
+		if (ack_pkt->seq_num > last_ack_seq)
 		{
-			w_advance = ack_pkt->seq_num - w_base;
-			w_base = advance_w(window, w_advance);
+			last_ack_seq = ack_pkt->seq_num;
+			selective_acks = ack_pkt->selective_acks; // Atualizar sel_acks
+
+			if (contains_w(window, ack_pkt->seq_num - 1))
+			{
+				w_advance = ack_pkt->seq_num - w_base;
+				w_base = advance_w(window, w_advance);
+			}
+		}
+		else if (ack_pkt->seq_num == last_ack_seq && ack_pkt->selective_acks > selective_acks)
+		{
+			selective_acks = ack_pkt->selective_acks;
 		}
 	}
 
