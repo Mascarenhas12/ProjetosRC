@@ -177,6 +177,8 @@ int main(int argc, char const *argv[])
 
 	timeout_counter = 0;
 
+	printf("FS - WINDOW: "); print_w(window);
+
 	while (!empty_w(window))
 	{
 		if (timeout_counter == 0)
@@ -193,6 +195,7 @@ int main(int argc, char const *argv[])
 				{
 					exit_failure("file-sender:Error while sending data!", senderSock, data_pkt, ack_pkt, window);
 				}
+				printf("FS - SENT: %d SIZE: %d\n", i, bytes_read);
 			}
 		}
 		else // Em caso de timeout, correr window toda e reenviar baseado no selective acks
@@ -215,9 +218,11 @@ int main(int argc, char const *argv[])
 				{
 					exit_failure("file-sender:Error while sending data!", senderSock, data_pkt, ack_pkt, window);
 				}
+				printf("FS - RESENT: %d SIZE: %d\n", i, bytes_read);
 			}
 		}
 
+		printf("FS - Waiting for data...\n");
 		if (recvfrom(senderSock, (ack_pkt_t*) ack_pkt, sizeof(ack_pkt_t), 0,
 		(struct sockaddr*) &receiverSock_addr, &receiverSock_addr_len) == -1)
 		{
@@ -230,6 +235,7 @@ int main(int argc, char const *argv[])
 			else
 				exit_failure("file-sender:Error while receiving ACK!", senderSock, data_pkt, ack_pkt, window);
 		}
+		printf("FS - RECV: %d S_ACK: %d\n", ack_pkt->seq_num, ack_pkt->selective_acks);
 		timeout_counter = 0; // Se chegou aqui recebeu um packet, logo faz-se reset ao counter 
 
 		if (ack_pkt->seq_num > last_ack_seq)
@@ -248,6 +254,7 @@ int main(int argc, char const *argv[])
 		{
 			selective_acks = ack_pkt->selective_acks;
 		}
+		printf("FS - WINDOW: "); print_w(window);
 	}
 
 	close(senderSock);

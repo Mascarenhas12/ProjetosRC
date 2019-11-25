@@ -164,21 +164,23 @@ int main(int argc, char const *argv[])
 	/* Receive and send loop                                                                    */
 	/* ======================================================================================== */
 
+	printf("FR - WINDOW: "); print_w(window);
 
 	do
 	{
-		printf("Waiting for data...\n");
+		printf("FR - Waiting for data...\n");
 		if ((bytes_recv = recvfrom(receiverSock, (data_pkt_t*) chunk, sizeof(data_pkt_t), 0, (struct sockaddr*) &senderSock_addr, &senderSock_addr_len)) == -1)
 		{
 			perror("file-receiver:Error while receiving!");
 			exit_status = -1;
 			break;
 		}
-		printf("RECV: %d SIZE: %lu\n", chunk->seq_num, sizeof(chunk->data));
+		printf("FR - RECV: %d SIZE: %d\n", chunk->seq_num, bytes_recv);
 
 		if (!contains_w(window, chunk->seq_num))
 		{
 			/* ignore */
+			printf("FR - IGNORED: %d SIZE: %d\n", chunk->seq_num, bytes_recv);
 		}
 		else
 		{
@@ -191,8 +193,7 @@ int main(int argc, char const *argv[])
 			//printf("BEFORE:"); print_w(window);
 			ack_packet = build_ack_packet(chunk->seq_num, window, &selective_acks);
 			//printf("AFTER:"); print_w(window);
-
-			printf("%d %d\n", ack_packet.seq_num, ack_packet.selective_acks);
+			printf("FR - WINDOW: "); print_w(window);
 
 			if (sendto(receiverSock, &ack_packet, sizeof(ack_pkt_t), 0, (struct sockaddr*) &senderSock_addr, senderSock_addr_len) == -1)
 			{
@@ -200,6 +201,7 @@ int main(int argc, char const *argv[])
 				exit_status = -1;
 				break;
 			}
+			printf("FR - SENT: %d S_ACK: %d\n", ack_packet.seq_num, ack_packet.selective_acks);
 		}
 	}
 	while (bytes_recv == sizeof(data_pkt_t));

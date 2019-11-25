@@ -124,7 +124,7 @@ int empty_w(window_t* W)
  */
 void print_w(window_t* W)
 {
-	printf("\n[");
+	printf("[");
 	for (int i = 0; i < W->size - 1; i++)
 	{
 		printf("%d, ", W->scope[i]);
