@@ -23,6 +23,8 @@ window_t* create_w(int size, int max_seq_num, int circular_logic);
 
 int get_base_w(window_t* W);
 
+int get_size_w(window_t* W);
+
 int contains_w(window_t* W, int seq_num);
 
 int advance_w(window_t* W, int amount);
