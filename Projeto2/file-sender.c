@@ -167,6 +167,7 @@ int main(int argc, char const *argv[])
 
 	window = create_w(w_size, num_packets, 0);
 	w_base = get_base_w(window);
+	w_size = get_size_w(window);
 	w_advance = w_size; // Util explicitar ultimo avanço na janela para deduzir quais os packets novos na janela a enviar
 
 	data_pkt = (data_pkt_t*) malloc(sizeof(data_pkt_t));
@@ -240,6 +241,7 @@ int main(int argc, char const *argv[])
 			{
 				w_advance = ack_pkt->seq_num - w_base;
 				w_base = advance_w(window, w_advance);
+				w_size = get_size_w(window);
 			}
 		}
 		else if (ack_pkt->seq_num == last_ack_seq && ack_pkt->selective_acks > selective_acks)

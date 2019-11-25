@@ -33,10 +33,10 @@ window_t* create_w(int size, int max_seq_num, int circular_logic)
 		new->size = size;
 
 	new->max_seq_num = max_seq_num;
-	new->scope = (int*) malloc(sizeof(int) * size);
+	new->scope = (int*) malloc(sizeof(int) * new->size);
 	new->circular_logic = circular_logic;
 
-	for (int i = 0; i < size; i++)
+	for (int i = 0; i < new->size; i++)
 		new->scope[i] = i + 1;
 
 	return new;
@@ -48,6 +48,14 @@ window_t* create_w(int size, int max_seq_num, int circular_logic)
 int get_base_w(window_t* W)
 {
 	return W->scope[0];
+}
+
+/* Function that returns the size of the window.
+ * W - Window to get the size from
+ */
+int get_size_w(window_t* W)
+{
+	return W->size;
 }
 
 /* Function that checks if a certain sequence number is whitin the scope of a window.
