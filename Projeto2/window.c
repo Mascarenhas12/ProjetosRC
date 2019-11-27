@@ -120,6 +120,7 @@ int empty_w(window_t* W)
 }
 
 /* Function that prints a formated form of the scope of the window.
+ * Used for debugging.
  * W - Window to print
  */
 void print_w(window_t* W)

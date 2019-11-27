@@ -9,6 +9,7 @@
  * ================================================
  */
 
+#include <arpa/inet.h>
 #include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,23 +31,33 @@ static ack_pkt_t build_ack_packet(int recv_seq, window_t* window, int* selective
 
 	int i = 1;
 	int w_base = get_base_w(window);
+	int w_size = get_size_w(window);
 
-	if (recv_seq == w_base)
+	if (recv_seq >= w_base && recv_seq < w_base + w_size)
 	{
-		while (*selective_acks % 2)
+		if (recv_seq == w_base)
 		{
+			while (*selective_acks % 2)
+			{
+				*selective_acks /= 2;
+				i++;
+			}
 			*selective_acks /= 2;
-			i++;
+
+			ack_packet.seq_num = htonl(advance_w(window, i));
 		}
-		*selective_acks /= 2;
+		else
+		{
+			*selective_acks ^= (1 << (recv_seq - (w_base + 1)));
+			ack_packet.seq_num = htonl(w_base);
+		}
 	}
 	else
 	{
-		*selective_acks ^= (1 << (recv_seq - (w_base + 1)));
+		ack_packet.seq_num = htonl(w_base);
 	}
 
-	ack_packet.seq_num = advance_w(window, i);
-	ack_packet.selective_acks = *selective_acks;
+	ack_packet.selective_acks = htonl(*selective_acks);
 
 	return ack_packet;
 }
@@ -64,15 +75,34 @@ static int write_file_chunk(char* buffer, int cursor, int data_size, FILE* fp)
 }
 
 
+static int valid_sender(int* sender_port, uint32_t* sender_host, struct sockaddr_in* senderSock_addr)
+{
+	if (*sender_port == -1)
+	{
+		*sender_port = ntohs(senderSock_addr->sin_port);
+		*sender_host = senderSock_addr->sin_addr.s_addr;
+	}
+	else if (senderSock_addr->sin_addr.s_addr != *sender_host ||
+	ntohs(senderSock_addr->sin_port) != *sender_port)
+	{
+		return 0;
+	}
+
+	return 1;
+}
+
+
 int main(int argc, char const *argv[])
 {
 	int port;
+	int sender_port;
+	uint32_t sender_host;
 
 	FILE* fp;
 
 	int receiverSock;
 	struct sockaddr_in receiverSock_addr;
-	struct sockaddr_storage senderSock_addr;
+	struct sockaddr_in senderSock_addr;
 	socklen_t senderSock_addr_len;
 
 	window_t* window;
@@ -101,7 +131,7 @@ int main(int argc, char const *argv[])
 		exit(-1);
 	}
 
-	if (atoi(argv[3]) > MAX_WINDOW_SIZE || atoi(argv[3]) < 0)
+	if (atoi(argv[3]) > MAX_WINDOW_SIZE || atoi(argv[3]) <= 0)
 	{
 		perror("file-receiver:Invalid window size!");
 		exit(-1);
@@ -119,7 +149,9 @@ int main(int argc, char const *argv[])
 	}
 
 	memset(&senderSock_addr, 0, sizeof(senderSock_addr));
-	senderSock_addr_len = sizeof(struct sockaddr_storage);
+	senderSock_addr_len = sizeof(struct sockaddr_in);
+	sender_port = -1;
+	sender_host = -1;
 
 	memset(&receiverSock_addr, 0, sizeof(receiverSock_addr));
 	receiverSock_addr.sin_family = AF_INET;
@@ -169,20 +201,25 @@ int main(int argc, char const *argv[])
 	do
 	{
 		printf("FR - Waiting for data...\n");
-		if ((bytes_recv = recvfrom(receiverSock, (data_pkt_t*) chunk, sizeof(data_pkt_t), 0, (struct sockaddr*) &senderSock_addr, &senderSock_addr_len)) == -1)
+		if ((bytes_recv = recvfrom(receiverSock, (data_pkt_t*) chunk, sizeof(data_pkt_t), 0,
+		(struct sockaddr*) &senderSock_addr, &senderSock_addr_len)) == -1)
 		{
 			perror("file-receiver:Error while receiving!");
 			exit_status = -1;
 			break;
 		}
+
+		if (!valid_sender(&sender_port, &sender_host, &senderSock_addr))
+		{
+			printf("FR - RECV FROM OTHER SENDER");
+			continue;
+		}
+
+		chunk->seq_num = ntohl(chunk->seq_num);
+
 		printf("FR - RECV: %d SIZE: %d\n", chunk->seq_num, bytes_recv);
 
-		if (!contains_w(window, chunk->seq_num))
-		{
-			/* ignore */
-			printf("FR - IGNORED: %d SIZE: %d\n", chunk->seq_num, bytes_recv);
-		}
-		else
+		if (contains_w(window, chunk->seq_num))
 		{
 			if (write_file_chunk(chunk->data, chunk->seq_num - 1, bytes_recv - sizeof(int), fp) == -1)
 			{
@@ -190,19 +227,21 @@ int main(int argc, char const *argv[])
 				exit_status = -1;
 				break;
 			}
-			//printf("BEFORE:"); print_w(window);
-			ack_packet = build_ack_packet(chunk->seq_num, window, &selective_acks);
-			//printf("AFTER:"); print_w(window);
-			printf("FR - WINDOW: "); print_w(window);
-
-			if (sendto(receiverSock, &ack_packet, sizeof(ack_pkt_t), 0, (struct sockaddr*) &senderSock_addr, senderSock_addr_len) == -1)
-			{
-				perror("file-receiver:Error while sending ACK!");
-				exit_status = -1;
-				break;
-			}
-			printf("FR - SENT: %d S_ACK: %d\n", ack_packet.seq_num, ack_packet.selective_acks);
 		}
+
+		ack_packet = build_ack_packet(chunk->seq_num, window, &selective_acks);
+
+		printf("FR - WINDOW: "); print_w(window);
+
+		if (sendto(receiverSock, &ack_packet, sizeof(ack_pkt_t), 0,
+		(struct sockaddr*) &senderSock_addr, senderSock_addr_len) == -1)
+		{
+			perror("file-receiver:Error while sending ACK!");
+			exit_status = -1;
+			break;
+		}
+		printf("FR - SENT: %d S_ACK: %d\n", ntohl(ack_packet.seq_num), ntohl(ack_packet.selective_acks));
+
 	}
 	while (bytes_recv == sizeof(data_pkt_t));
 

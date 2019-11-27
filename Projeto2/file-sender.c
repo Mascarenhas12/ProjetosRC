@@ -46,7 +46,7 @@ static int read_file_chunk(char* buffer, int cursor, FILE* fp)
 
 static int build_data_packet(data_pkt_t* data_pkt, int seq_num, FILE* fp)
 {
-	data_pkt->seq_num = seq_num;
+	data_pkt->seq_num = htonl(seq_num);
 	return read_file_chunk(data_pkt->data, seq_num - 1, fp);
 }
 
@@ -72,7 +72,9 @@ int main(int argc, char const *argv[])
 
 	int senderSock;
 	struct sockaddr_in receiverSock_addr;
+	struct sockaddr_in received_addr;
 	socklen_t receiverSock_addr_len;
+	socklen_t received_addr_len;
 	struct timeval timeout;
 	int timeout_counter;
 	
@@ -111,7 +113,7 @@ int main(int argc, char const *argv[])
 		exit(-1);
 	}
 
-	if ((w_size = atoi(argv[4])) > MAX_WINDOW_SIZE || w_size < 0)
+	if ((w_size = atoi(argv[4])) > MAX_WINDOW_SIZE || w_size <= 0)
 	{
 		perror("file-sender:Invalid window size!");
 		exit(-1);
@@ -153,8 +155,10 @@ int main(int argc, char const *argv[])
 		close(senderSock);
 		exit(-1);
 	}
-	receiverSock_addr_len = sizeof(struct sockaddr_in);
+	memset(&received_addr, 0, sizeof(received_addr));
+	received_addr_len = sizeof(struct sockaddr_in);
 
+	receiverSock_addr_len = sizeof(struct sockaddr_in);
 	memset(&receiverSock_addr, 0, sizeof(receiverSock_addr));
 	receiverSock_addr.sin_family = AF_INET;
 	receiverSock_addr.sin_port = htons(port);
@@ -222,12 +226,13 @@ int main(int argc, char const *argv[])
 			}
 		}
 
-		printf("FS - Waiting for data...\n");
+		printf("FS - Waiting for acks...\n");
 		if (recvfrom(senderSock, (ack_pkt_t*) ack_pkt, sizeof(ack_pkt_t), 0,
-		(struct sockaddr*) &receiverSock_addr, &receiverSock_addr_len) == -1)
+		(struct sockaddr*) &received_addr, &received_addr_len) == -1)
 		{
 			if (errno == (EAGAIN | EWOULDBLOCK))
 			{
+				printf("FS - TIMEOUT OCCURED\n");
 				if (++timeout_counter == 3)
 					exit_failure("Shut down after 3 consecutive timeouts!", senderSock, data_pkt, ack_pkt, window);
 				continue;
@@ -235,13 +240,24 @@ int main(int argc, char const *argv[])
 			else
 				exit_failure("file-sender:Error while receiving ACK!", senderSock, data_pkt, ack_pkt, window);
 		}
+
+		if (received_addr.sin_addr.s_addr != receiverSock_addr.sin_addr.s_addr ||
+				received_addr.sin_port != receiverSock_addr.sin_port)
+		{
+			printf("FS - RECV FROM OTHER RECEIVER");
+			continue;
+		}
+
+		timeout_counter = 0;
+		ack_pkt->seq_num = ntohl(ack_pkt->seq_num);
+		ack_pkt->selective_acks = ntohl(ack_pkt->selective_acks);
+
 		printf("FS - RECV: %d S_ACK: %d\n", ack_pkt->seq_num, ack_pkt->selective_acks);
-		timeout_counter = 0; // Se chegou aqui recebeu um packet, logo faz-se reset ao counter 
 
 		if (ack_pkt->seq_num > last_ack_seq)
 		{
 			last_ack_seq = ack_pkt->seq_num;
-			selective_acks = ack_pkt->selective_acks; // Atualizar sel_acks
+			selective_acks = ack_pkt->selective_acks;
 
 			if (contains_w(window, ack_pkt->seq_num - 1))
 			{
@@ -250,10 +266,9 @@ int main(int argc, char const *argv[])
 
 				if (get_size_w(window) < w_size)
 				{
+					w_size = get_size_w(window);
 					w_advance = 0;
 				}
-				
-				w_size = get_size_w(window);
 			}
 		}
 		else if (ack_pkt->seq_num == last_ack_seq && ack_pkt->selective_acks > selective_acks)
