@@ -122,7 +122,7 @@ int main(int argc, char const *argv[])
 	/* ======================================================================================== */
 	/* Basic argument verification                                                              */
 	/* ======================================================================================== */
-
+	puts("Start!");
 
 	if (argc != 4)
 	{
@@ -248,10 +248,10 @@ int main(int argc, char const *argv[])
 		}
 		printf("FR - SENT: %d S_ACK: %d\n", ntohl(ack_packet.seq_num), ntohl(ack_packet.selective_acks));
 
-		if (bytes_recv == sizeof(data_pkt_t))
+		if (bytes_recv != sizeof(data_pkt_t))
 			last_packet_sn = chunk->seq_num;
 	}
-	while (last_packet_sn != -1 && get_base_w(window) > last_packet_sn);
+	while (last_packet_sn == -1 || get_base_w(window) <= last_packet_sn);
 
 	if (exit_status != -1)
 		puts("Finished receiving data.");
