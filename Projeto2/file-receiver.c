@@ -33,8 +33,6 @@ static ack_pkt_t build_ack_packet(int recv_seq, window_t* window, int* selective
 	int w_base = get_base_w(window);
 	int w_size = get_size_w(window);
 
-	int sa_mask = (1 << (recv_seq - (w_base + 1)));
-
 	if (recv_seq >= w_base && recv_seq < w_base + w_size)
 	{
 		if (recv_seq == w_base)
