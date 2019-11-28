@@ -273,6 +273,7 @@ int main(int argc, char const *argv[])
 		}
 		else if (ack_pkt->seq_num == last_ack_seq && ack_pkt->selective_acks > selective_acks)
 		{
+			w_advance = 0;
 			selective_acks = ack_pkt->selective_acks;
 		}
 		printf("FS - WINDOW: "); print_w(window);
