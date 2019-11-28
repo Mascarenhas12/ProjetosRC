@@ -94,6 +94,10 @@ static int valid_sender(int* sender_port, uint32_t* sender_host, struct sockaddr
 
 int main(int argc, char const *argv[])
 {
+	/* ======================================================================================== */
+	/* Variables declaration                                                                    */
+	/* ======================================================================================== */
+
 	int port;
 	int sender_port;
 	uint32_t sender_host;
@@ -107,6 +111,7 @@ int main(int argc, char const *argv[])
 
 	window_t* window;
 	int selective_acks;
+	int last_packet_sn;
 
 	int bytes_recv;
 	data_pkt_t* chunk;
@@ -115,7 +120,7 @@ int main(int argc, char const *argv[])
 	int exit_status;
 
 	/* ======================================================================================== */
-	/* Argument verification                                                                    */
+	/* Basic argument verification                                                              */
 	/* ======================================================================================== */
 
 
@@ -187,6 +192,7 @@ int main(int argc, char const *argv[])
 	chunk = (data_pkt_t*) malloc(sizeof(data_pkt_t));
 	window = create_w(atoi(argv[3]), -1, 0);
 	selective_acks = 0;
+	last_packet_sn = -1;
 	exit_status = 0;
 
 	puts("Server opened on port 1234.");
@@ -211,13 +217,13 @@ int main(int argc, char const *argv[])
 
 		if (!valid_sender(&sender_port, &sender_host, &senderSock_addr))
 		{
-			printf("FR - RECV FROM OTHER SENDER");
+			printf("FR - RECV FROM OTHER SENDER. WILL IGNORE\n");
 			continue;
 		}
 
 		chunk->seq_num = ntohl(chunk->seq_num);
 
-		printf("FR - RECV: %d SIZE: %d\n", chunk->seq_num, bytes_recv);
+		printf("FR - RECV: %d SIZE: %d\n", chunk->seq_num, bytes_recv - 4);
 
 		if (contains_w(window, chunk->seq_num))
 		{
@@ -242,8 +248,10 @@ int main(int argc, char const *argv[])
 		}
 		printf("FR - SENT: %d S_ACK: %d\n", ntohl(ack_packet.seq_num), ntohl(ack_packet.selective_acks));
 
+		if (bytes_recv == sizeof(data_pkt_t))
+			last_packet_sn = chunk->seq_num;
 	}
-	while (bytes_recv == sizeof(data_pkt_t));
+	while (last_packet_sn != -1 && get_base_w(window) > last_packet_sn);
 
 	if (exit_status != -1)
 		puts("Finished receiving data.");

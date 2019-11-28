@@ -64,6 +64,10 @@ static void exit_failure(char* msg, int sockFd, data_pkt_t* data_pkt, ack_pkt_t*
 
 int main(int argc, char const *argv[])
 {
+	/* ======================================================================================== */
+	/* Variables declaration                                                                    */
+	/* ======================================================================================== */
+
 	struct hostent* host;
 	int port;
 
@@ -91,7 +95,7 @@ int main(int argc, char const *argv[])
 
 
 	/* ======================================================================================== */
-	/* Argument verification                                                                    */
+	/*  Basic argument verification                                                             */
 	/* ======================================================================================== */
 
 
@@ -172,7 +176,7 @@ int main(int argc, char const *argv[])
 	window = create_w(w_size, num_packets, 0);
 	w_base = get_base_w(window);
 	w_size = get_size_w(window);
-	w_advance = w_size; // Util explicitar ultimo avanço na janela para deduzir quais os packets novos na janela a enviar
+	w_advance = w_size;
 
 	data_pkt = (data_pkt_t*) malloc(sizeof(data_pkt_t));
 	ack_pkt = (ack_pkt_t*) malloc(sizeof(ack_pkt_t));
@@ -187,10 +191,10 @@ int main(int argc, char const *argv[])
 	{
 		if (timeout_counter == 0)
 		{
-			// Primeira vez corre janela toda (w_advance = w_size). Vezes seguintes comeca na posicao da janela com packets novos a enviar
+			/* Send only packets that have not yet been sent */
+			/* First time all window (w_advance = w_size), then only new packets after window advances) */
 			for (int i = (w_base + w_size) - w_advance; i < w_base + w_size; i++)
 			{
-				// Usa fseek, não ha buffers
 				if ((bytes_read = build_data_packet(data_pkt, i, fp)) == -1)
 					exit_failure("file-sender:Error while reading from file!", senderSock, data_pkt, ack_pkt, window);
 
@@ -202,18 +206,17 @@ int main(int argc, char const *argv[])
 				printf("FS - SENT: %d SIZE: %d\n", i, bytes_read);
 			}
 		}
-		else // Em caso de timeout, correr window toda e reenviar baseado no selective acks
+		else
 		{
-			for (int i = w_base, j = 0; i < w_base + w_size; i++, j++)
+			/* If a timeout occurred, resend all packets in window not confirmed by the receiver (based on selective acks) */
+			/* Allways send packet at base. Selective acks is applicable after that (reason to start j=-1). */
+			for (int i = w_base, j = -1; i < w_base + w_size; i++, j++)
 			{
-				// Sel_acks nao conta 1o pacote da janela, que é preciso enviar de certeza
-				// Presumindo que janelas estao sincronizadas... Caso contrario pode haver merda se chegar aqui
 				if (i != w_base && (selective_acks >> j) % 2)
 				{
 					continue;
 				}
 
-				// Usa fseek, não ha buffers
 				if ((bytes_read = build_data_packet(data_pkt, i, fp)) == -1)
 					exit_failure("file-sender:Error while reading from file!", senderSock, data_pkt, ack_pkt, window);
 
@@ -241,10 +244,11 @@ int main(int argc, char const *argv[])
 				exit_failure("file-sender:Error while receiving ACK!", senderSock, data_pkt, ack_pkt, window);
 		}
 
+		// Check if received from the same server
 		if (received_addr.sin_addr.s_addr != receiverSock_addr.sin_addr.s_addr ||
 				received_addr.sin_port != receiverSock_addr.sin_port)
 		{
-			printf("FS - RECV FROM OTHER RECEIVER");
+			printf("FS - RECV FROM OTHER RECEIVER\n");
 			continue;
 		}
 
