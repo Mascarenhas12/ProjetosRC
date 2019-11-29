@@ -81,7 +81,7 @@ int main(int argc, char const *argv[])
 	socklen_t received_addr_len;
 	struct timeval timeout;
 	int timeout_counter;
-	
+
 	long num_packets;
 	data_pkt_t* data_pkt;
 	ack_pkt_t* ack_pkt;
@@ -198,7 +198,7 @@ int main(int argc, char const *argv[])
 				if ((bytes_read = build_data_packet(data_pkt, i, fp)) == -1)
 					exit_failure("file-sender:Error while reading from file!", senderSock, data_pkt, ack_pkt, window);
 
-				if (sendto(senderSock, (data_pkt_t*) data_pkt, bytes_read + sizeof(int), 0, 
+				if (sendto(senderSock, (data_pkt_t*) data_pkt, bytes_read + sizeof(int), 0,
 				(struct sockaddr*) &receiverSock_addr, receiverSock_addr_len) == -1)
 				{
 					exit_failure("file-sender:Error while sending data!", senderSock, data_pkt, ack_pkt, window);
@@ -220,7 +220,7 @@ int main(int argc, char const *argv[])
 				if ((bytes_read = build_data_packet(data_pkt, i, fp)) == -1)
 					exit_failure("file-sender:Error while reading from file!", senderSock, data_pkt, ack_pkt, window);
 
-				if (sendto(senderSock, (data_pkt_t*) data_pkt, bytes_read + sizeof(int), 0, 
+				if (sendto(senderSock, (data_pkt_t*) data_pkt, bytes_read + sizeof(int), 0,
 				(struct sockaddr*) &receiverSock_addr, receiverSock_addr_len) == -1)
 				{
 					exit_failure("file-sender:Error while sending data!", senderSock, data_pkt, ack_pkt, window);
@@ -263,7 +263,7 @@ int main(int argc, char const *argv[])
 			last_ack_seq = ack_pkt->seq_num;
 			selective_acks = ack_pkt->selective_acks;
 
-			if (contains_w(window, ack_pkt->seq_num - 1))
+			if (ack_pkt->seq_num == w_base || contains_w(window, ack_pkt->seq_num - 1))
 			{
 				w_advance = ack_pkt->seq_num - w_base;
 				w_base = advance_w(window, w_advance);

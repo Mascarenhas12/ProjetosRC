@@ -203,10 +203,11 @@ int main(int argc, char const *argv[])
 	/* ======================================================================================== */
 
 	printf("FR - WINDOW: "); print_w(window);
-
+	fflush(stdout);
 	do
 	{
 		printf("FR - Waiting for data...\n");
+		fflush(stdout);
 		if ((bytes_recv = recvfrom(receiverSock, (data_pkt_t*) chunk, sizeof(data_pkt_t), 0,
 		(struct sockaddr*) &senderSock_addr, &senderSock_addr_len)) == -1)
 		{
@@ -221,9 +222,12 @@ int main(int argc, char const *argv[])
 			continue;
 		}
 
+		puts("Received!");
+		fflush(stdout);
 		chunk->seq_num = ntohl(chunk->seq_num);
 
 		printf("FR - RECV: %d SIZE: %d\n", chunk->seq_num, bytes_recv - 4);
+		fflush(stdout);
 
 		if (contains_w(window, chunk->seq_num))
 		{
@@ -248,6 +252,7 @@ int main(int argc, char const *argv[])
 		}
 		printf("FR - SENT: %d S_ACK: %d\n", ntohl(ack_packet.seq_num), ntohl(ack_packet.selective_acks));
 
+		fflush(stdout);
 		if (bytes_recv != sizeof(data_pkt_t))
 			last_packet_sn = chunk->seq_num;
 	}
